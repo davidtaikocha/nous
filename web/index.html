@@ -758,6 +758,41 @@
       color: var(--green-300);
     }
 
+    .slash-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+      padding: 8px 12px;
+      background: rgba(241, 92, 93, 0.06);
+      border: 1px solid rgba(241, 92, 93, 0.15);
+      border-radius: 8px;
+    }
+
+    .slash-icon {
+      width: 14px;
+      height: 14px;
+      stroke: var(--red-300);
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      flex-shrink: 0;
+    }
+
+    .slash-text {
+      font-size: 0.72rem;
+      color: var(--red-300);
+      font-weight: 500;
+    }
+
+    .slash-amount {
+      margin-left: auto;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--red-300);
+    }
+
     /* Empty state */
     .empty-state {
       text-align: center;
@@ -1480,10 +1515,31 @@
       return select.value;
     }
 
+    const tokenSymbolCache = {};
+
+    async function resolveTokenSymbol(address) {
+      if (!address || address === ethers.ZeroAddress) return 'ETH';
+      const checksummed = ethers.getAddress(address);
+      if (KNOWN_TOKENS[checksummed]) return KNOWN_TOKENS[checksummed].symbol;
+      if (tokenSymbolCache[checksummed]) return tokenSymbolCache[checksummed];
+      try {
+        const token = new ethers.Contract(checksummed, ['function symbol() view returns (string)'], provider);
+        const sym = await token.symbol();
+        tokenSymbolCache[checksummed] = sym;
+        return sym;
+      } catch {
+        return shortAddr(checksummed);
+      }
+    }
+
     function getTokenSymbol(address) {
       if (!address || address === ethers.ZeroAddress) return 'ETH';
-      const known = KNOWN_TOKENS[ethers.getAddress(address)];
-      return known ? known.symbol : shortAddr(address);
+      const checksummed = ethers.getAddress(address);
+      if (KNOWN_TOKENS[checksummed]) return KNOWN_TOKENS[checksummed].symbol;
+      if (tokenSymbolCache[checksummed]) return tokenSymbolCache[checksummed];
+      // Trigger async resolve for next render
+      resolveTokenSymbol(checksummed);
+      return shortAddr(checksummed);
     }
 
     function updateTokenLabels() {
@@ -1846,7 +1902,12 @@
                   <span class="reward-winner-addr"><span class="winner-crown">&#x1F3C6;</span> ${shortAddr(addr)}</span>
                   <span class="reward-winner-amount">+${formatTokenAmount(payoutPerWinner, rewardSymbol)}</span>
                 </div>`).join('')}
-              ${totalLosers > 0 ? `<div style="margin-top: 8px; font-size: 0.68rem; color: var(--red-300);">${totalLosers} agent(s) slashed: ${formatTokenAmount(req.bondAmount, bondSymbol)} each</div>` : ''}
+              ${totalLosers > 0 ? `
+                <div class="slash-row">
+                  <svg class="slash-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                  <span class="slash-text">${totalLosers} agent${totalLosers > 1 ? 's' : ''} slashed</span>
+                  <span class="slash-amount">-${formatTokenAmount(req.bondAmount, bondSymbol)} each</span>
+                </div>` : ''}
             </div>`;
         }
 
@@ -1924,6 +1985,13 @@
         refreshText.textContent = 'Fetching\u2026';
         const requests = await fetchAllRequests();
         errorBanner.style.display = 'none';
+        // Pre-resolve token symbols before rendering
+        const tokenAddrs = new Set();
+        for (const r of requests) {
+          if (r.request.rewardToken !== ethers.ZeroAddress) tokenAddrs.add(r.request.rewardToken);
+          if (r.request.bondToken !== ethers.ZeroAddress) tokenAddrs.add(r.request.bondToken);
+        }
+        await Promise.all([...tokenAddrs].map(resolveTokenSymbol));
         renderPipeline(requests);
         renderRequests(requests);
         refreshText.textContent = `Updated ${new Date().toLocaleTimeString()}`;
