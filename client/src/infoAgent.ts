@@ -4,11 +4,23 @@ import { z } from 'zod';
 
 import type { InfoAgentResult, OracleRequest } from './types.js';
 
+function coerceToString(v: unknown): string {
+  if (typeof v === 'string') return v;
+  if (v && typeof v === 'object') {
+    if ('text' in v && typeof (v as any).text === 'string') return (v as any).text;
+    return JSON.stringify(v);
+  }
+  return String(v ?? '');
+}
+
 export const infoAgentResultSchema = z.object({
-  answer: z.string().min(1),
-  confidence: z.number().min(0).max(1),
-  reasoning: z.string().min(1),
-  sources: z.array(z.string().url()).default([]),
+  answer: z.any().transform((v) => coerceToString(v)).pipe(z.string().min(1)),
+  confidence: z.any().transform((v) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0.5;
+  }),
+  reasoning: z.any().transform((v) => coerceToString(v)).pipe(z.string().min(1)),
+  sources: z.array(z.any().transform((v) => coerceToString(v))).default([]),
 });
 
 export function parseInfoAgentResult(input: unknown): InfoAgentResult {
@@ -22,20 +34,19 @@ export function buildInfoAgentPrompt(request: OracleRequest): string {
 
   return [
     'You are an info agent participating in an oracle council.',
-    'Your job is to provide an answer only when it is supported by sufficiently strong evidence.',
+    'Your job is to provide the best possible answer to the question using your knowledge.',
     `Question: ${request.query}`,
     `Specifications: ${specifications}`,
     `Required capabilities: ${capabilities}`,
     `Required domains: ${domains}`,
     'Instructions:',
-    '- Answer with verified facts, not guesses.',
+    '- Always provide a substantive answer. Never abstain or refuse to answer.',
+    '- Use your training knowledge to give the best answer you can.',
+    '- If the question asks about real-time data, provide your best estimate based on general knowledge (e.g. typical weather patterns, known facts, historical data).',
+    '- Clearly state in your reasoning what is based on direct knowledge vs general patterns.',
+    '- Use lower confidence when your answer is based on general knowledge rather than specific data.',
     '- Separate observed facts from inference in your reasoning.',
-    '- Prefer primary sources and recent sources when the question is time-sensitive.',
-    '- If you have weak or conflicting evidence, abstain instead of guessing.',
-    '- If you abstain, say so clearly in the answer field and explain why in reasoning.',
-    '- Never invent facts, dates, URLs, or certainty.',
-    '- Never invent sources. Only include sources you actually relied on.',
-    '- Use lower confidence when evidence is partial, indirect, or stale.',
+    '- Never invent specific URLs or sources you did not rely on.',
     'Return a JSON object with answer, confidence, reasoning, and sources.',
   ].join('\n');
 }
@@ -71,6 +82,21 @@ function extractAssistantText(content: unknown): string {
   throw new Error('OpenRouter returned an unsupported assistant message content shape');
 }
 
+function sanitizeLlmJson(raw: string): string {
+  // Strip markdown code fences
+  let text = raw.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
+  // Escape control characters only inside JSON string values (between quotes)
+  text = text.replace(/"(?:[^"\\]|\\.)*"/g, (match) =>
+    match.replace(/[\x00-\x1F\x7F]/g, (ch) => {
+      if (ch === '\n') return '\\n';
+      if (ch === '\r') return '\\r';
+      if (ch === '\t') return '\\t';
+      return '';
+    }),
+  );
+  return text;
+}
+
 export async function generateInfoAgentResult({
   openRouter,
   model,
@@ -89,21 +115,23 @@ export async function generateInfoAgentResult({
       responseFormat: {
         type: 'json_object',
       },
+      plugins: [{ id: 'web', max_results: 5 }],
       messages: [
         {
           role: 'system',
-          content: 'Return only a valid JSON object matching the requested schema.',
+          content: 'You have web search access. Search for current information when needed. Return only a valid JSON object matching the requested schema.',
         },
         {
           role: 'user',
           content: buildInfoAgentPrompt(request),
         },
       ],
-    },
+    } as any,
   });
   const content = response.choices[0]?.message?.content;
   const rawText = extractAssistantText(content);
-  const parsed = JSON.parse(rawText) as unknown;
+  const cleanedText = sanitizeLlmJson(rawText);
+  const parsed = JSON.parse(cleanedText) as unknown;
 
   return parseInfoAgentResult(parsed);
 }

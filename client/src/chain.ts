@@ -91,6 +91,32 @@ export function isActivePhase(phase: PhaseName): boolean {
   return ACTIVE_PHASES.has(phase);
 }
 
+const DEFAULT_GAS = 5_000_000n;
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 2_000;
+
+async function withRetry<T>(fn: () => Promise<T>, retries = MAX_RETRIES): Promise<T> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (attempt === retries) {
+        console.error(`[chain] Tx failed after ${retries} attempts: ${msg}`);
+        throw err;
+      }
+      const isRetryable = /gas|timeout|nonce|underpriced|already known/i.test(msg);
+      if (!isRetryable) {
+        console.error(`[chain] Tx failed (non-retryable): ${msg}`);
+        throw err;
+      }
+      console.warn(`[chain] Tx attempt ${attempt}/${retries} failed (${msg}), retrying in ${RETRY_DELAY_MS * attempt}ms...`);
+      await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * attempt));
+    }
+  }
+  throw new Error('unreachable');
+}
+
 export function createNousChainClient({
   publicClient,
   walletClients,
@@ -220,59 +246,79 @@ export function createNousChainClient({
       const request = await getRequest(requestId);
       const walletClient = getWalletClient(agentAddress);
 
-      return walletClient.writeContract({
+      const hash = await withRetry(() => walletClient.writeContract({
         address: oracleAddress,
         abi: oracleAbi,
         functionName: 'commit',
         args: [requestId, commitment],
         chain: walletClient.chain,
         account: walletClient.account!,
+        gas: DEFAULT_GAS,
         value: request.bondToken === zeroAddress ? request.bondAmount : undefined,
-      });
+      }));
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      if (receipt.status === 'reverted') throw new Error(`commit tx ${hash} reverted`);
+      return hash;
     },
     async reveal(agentAddress, requestId, answer, nonce) {
       const walletClient = getWalletClient(agentAddress);
-      return walletClient.writeContract({
+      const hash = await withRetry(() => walletClient.writeContract({
         address: oracleAddress,
         abi: oracleAbi,
         functionName: 'reveal',
         args: [requestId, answer, nonce],
         chain: walletClient.chain,
         account: walletClient.account!,
-      });
+        gas: DEFAULT_GAS,
+      }));
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      if (receipt.status === 'reverted') throw new Error(`reveal tx ${hash} reverted`);
+      return hash;
     },
     async aggregate(agentAddress, requestId, finalAnswer, winners, reasoning) {
       const walletClient = getWalletClient(agentAddress);
-      return walletClient.writeContract({
+      const hash = await withRetry(() => walletClient.writeContract({
         address: oracleAddress,
         abi: oracleAbi,
         functionName: 'aggregate',
         args: [requestId, finalAnswer, winners, reasoning],
         chain: walletClient.chain,
         account: walletClient.account!,
-      });
+        gas: DEFAULT_GAS,
+      }));
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      if (receipt.status === 'reverted') throw new Error(`aggregate tx ${hash} reverted`);
+      return hash;
     },
     async endCommitPhase(requestId) {
       const walletClient = getMaintenanceWallet();
-      return walletClient.writeContract({
+      const hash = await withRetry(() => walletClient.writeContract({
         address: oracleAddress,
         abi: oracleAbi,
         functionName: 'endCommitPhase',
         args: [requestId],
         chain: walletClient.chain,
         account: walletClient.account!,
-      });
+        gas: DEFAULT_GAS,
+      }));
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      if (receipt.status === 'reverted') throw new Error(`endCommitPhase tx ${hash} reverted`);
+      return hash;
     },
     async endRevealPhase(requestId) {
       const walletClient = getMaintenanceWallet();
-      return walletClient.writeContract({
+      const hash = await withRetry(() => walletClient.writeContract({
         address: oracleAddress,
         abi: oracleAbi,
         functionName: 'endRevealPhase',
         args: [requestId],
         chain: walletClient.chain,
         account: walletClient.account!,
-      });
+        gas: DEFAULT_GAS,
+      }));
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      if (receipt.status === 'reverted') throw new Error(`endRevealPhase tx ${hash} reverted`);
+      return hash;
     },
   };
 }

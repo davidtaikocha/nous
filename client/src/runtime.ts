@@ -16,7 +16,7 @@ import { generateJudgeDecision } from './judgeAgent.js';
 import { createFileStateStore } from './store.js';
 import { createWorker, type InfoAgentRuntime, type JudgeAgentRuntime } from './worker.js';
 
-export function buildRuntime({ config }: { config: NousClientConfig }) {
+export function buildRuntime({ config, agentModels }: { config: NousClientConfig; agentModels?: Map<string, string> }) {
   const chain = defineChain({
     id: config.chainId,
     name: `chain-${config.chainId}`,
@@ -63,27 +63,30 @@ export function buildRuntime({ config }: { config: NousClientConfig }) {
     config.judgeAgentPrivateKeys.map((privateKey) => getAddress(privateKeyToAccount(privateKey).address)),
   );
 
-  const infoAgents: InfoAgentRuntime[] = walletClients
-    .filter((walletClient) => infoAgentAddresses.has(getAddress(walletClient.account!.address)))
-    .map((walletClient) => ({
-      address: getAddress(walletClient.account!.address),
+  function getModelForKey(privateKey: Hex): string {
+    return agentModels?.get(privateKey) ?? config.modelId;
+  }
+
+  const infoAgents: InfoAgentRuntime[] = config.infoAgentPrivateKeys.map((privateKey) => {
+    const address = getAddress(privateKeyToAccount(privateKey).address);
+    const model = getModelForKey(privateKey);
+    return {
+      address,
       async generate(request) {
         if (!openRouter) {
           throw new Error('OPENROUTER_API_KEY is required to generate info-agent answers');
         }
 
-        return generateInfoAgentResult({
-          openRouter,
-          model: config.modelId,
-          request,
-        });
+        return generateInfoAgentResult({ openRouter, model, request });
       },
-    }));
+    };
+  });
 
-  const judgeAgents: JudgeAgentRuntime[] = walletClients
-    .filter((walletClient) => judgeAgentAddresses.has(getAddress(walletClient.account!.address)))
-    .map((walletClient) => ({
-      address: getAddress(walletClient.account!.address),
+  const judgeAgents: JudgeAgentRuntime[] = config.judgeAgentPrivateKeys.map((privateKey) => {
+    const address = getAddress(privateKeyToAccount(privateKey).address);
+    const model = getModelForKey(privateKey);
+    return {
+      address,
       async judge(input) {
         if (!openRouter) {
           throw new Error('OPENROUTER_API_KEY is required to generate judge decisions');
@@ -91,12 +94,13 @@ export function buildRuntime({ config }: { config: NousClientConfig }) {
 
         return generateJudgeDecision({
           openRouter,
-          model: config.modelId,
+          model,
           request: input.request,
           revealedAnswers: input.revealedAnswers,
         });
       },
-    }));
+    };
+  });
 
   const chainClient = createNousChainClient({
     publicClient,

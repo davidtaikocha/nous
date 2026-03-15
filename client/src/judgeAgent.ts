@@ -7,7 +7,7 @@ import type { DecodedInfoAnswer, JudgeDecision, OracleRequest } from './types.js
 export const judgeDecisionSchema = z.object({
   finalAnswer: z.string().min(1),
   reasoning: z.string().min(1),
-  winnerAddresses: z.array(z.string()).min(1),
+  winnerAddresses: z.array(z.string()).default([]),
 });
 
 export function parseJudgeDecision(input: unknown): JudgeDecision {
@@ -23,6 +23,11 @@ export function validateJudgeDecision(
   decision: JudgeDecision,
   revealedAddresses: Address[],
 ): JudgeDecision {
+  // If no winners selected, default to all revealed agents
+  if (decision.winnerAddresses.length === 0) {
+    decision = { ...decision, winnerAddresses: revealedAddresses };
+  }
+
   const revealedSet = new Set(revealedAddresses.map((address) => getAddress(address).toLowerCase()));
 
   for (const winner of decision.winnerAddresses) {
@@ -43,17 +48,17 @@ export function buildJudgePrompt({
 }): string {
   return [
     'You are the judge agent for an oracle council.',
-    'Your job is to select the revealed answers that are best supported by evidence, not the answers that sound most polished.',
+    'Your job is to evaluate revealed answers and select the best one(s).',
     `Question: ${request.query}`,
     `Specifications: ${request.specifications || 'No additional specifications provided.'}`,
     'Instructions:',
+    '- You MUST select at least one winner. The winnerAddresses array must NOT be empty.',
+    '- If all answers are weak, pick the least bad one as winner.',
     '- Evaluate factual accuracy first, source quality second, and completeness third.',
-    '- Ignore eloquence, verbosity, and writing style.',
-    '- Prefer a well-supported abstention over an unsupported claim.',
-    '- Penalize answers that overclaim certainty, ignore conflicting evidence, or cite weak support.',
-    '- Multiple winners are allowed when several revealed answers are materially equivalent in correctness and evidence quality.',
-    '- In reasoning, explain why the winners beat the losers.',
-    'Return finalAnswer, reasoning, and winnerAddresses.',
+    '- Multiple winners are allowed when answers are equivalent in quality.',
+    '- Synthesize the best answer into finalAnswer.',
+    '- In reasoning, explain your decision.',
+    'Return a JSON object with: finalAnswer (string), reasoning (string), winnerAddresses (array of address strings, at least one).',
     'Revealed answers:',
     ...revealedAnswers.map(({ agentAddress, answer }) => {
       if (answer.parsedAnswer) {
@@ -96,6 +101,21 @@ function extractAssistantText(content: unknown): string {
   throw new Error('OpenRouter returned an unsupported assistant message content shape');
 }
 
+function sanitizeLlmJson(raw: string): string {
+  // Strip markdown code fences
+  let text = raw.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
+  // Escape control characters only inside JSON string values (between quotes)
+  text = text.replace(/"(?:[^"\\]|\\.)*"/g, (match) =>
+    match.replace(/[\x00-\x1F\x7F]/g, (ch) => {
+      if (ch === '\n') return '\\n';
+      if (ch === '\r') return '\\r';
+      if (ch === '\t') return '\\t';
+      return '';
+    }),
+  );
+  return text;
+}
+
 export async function generateJudgeDecision({
   openRouter,
   model,
@@ -116,21 +136,23 @@ export async function generateJudgeDecision({
       responseFormat: {
         type: 'json_object',
       },
+      plugins: [{ id: 'web', max_results: 5 }],
       messages: [
         {
           role: 'system',
-          content: 'Return only a valid JSON object matching the requested schema.',
+          content: 'You have web search access. Use it to verify the accuracy of revealed answers. Return only a valid JSON object matching the requested schema.',
         },
         {
           role: 'user',
           content: buildJudgePrompt({ request, revealedAnswers }),
         },
       ],
-    },
+    } as any,
   });
   const content = response.choices[0]?.message?.content;
   const rawText = extractAssistantText(content);
-  const parsed = JSON.parse(rawText) as unknown;
+  const cleanedText = sanitizeLlmJson(rawText);
+  const parsed = JSON.parse(cleanedText) as unknown;
 
   return parseJudgeDecision(parsed);
 }

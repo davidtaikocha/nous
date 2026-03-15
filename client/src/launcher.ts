@@ -38,6 +38,41 @@ export async function loadAgentManifest(filePath: string): Promise<AgentManifest
   return parseAgentManifest(JSON.parse(raw));
 }
 
+export function buildMergedConfig({
+  manifest,
+  baseConfig,
+  stateDir,
+}: {
+  manifest: AgentManifest;
+  baseConfig: NousClientConfig;
+  stateDir: string;
+}): { config: NousClientConfig; agentModels: Map<string, string> } {
+  const infoKeys: Hex[] = [];
+  const judgeKeys: Hex[] = [];
+  const agentModels = new Map<string, string>();
+
+  for (const agent of manifest.agents) {
+    const privateKey = agent.privateKey as Hex;
+    if (agent.role === 'info') {
+      infoKeys.push(privateKey);
+    } else {
+      judgeKeys.push(privateKey);
+    }
+    agentModels.set(privateKey, agent.model);
+  }
+
+  return {
+    config: {
+      ...baseConfig,
+      stateFile: join(stateDir, 'state.json'),
+      infoAgentPrivateKeys: infoKeys,
+      judgeAgentPrivateKeys: judgeKeys,
+    },
+    agentModels,
+  };
+}
+
+// Keep for backwards compat with tests
 export function buildAgentConfigs({
   manifest,
   baseConfig,
@@ -75,28 +110,24 @@ export async function runLauncher({
   const agentsFile = resolve(env.AGENTS_FILE ?? 'agents.json');
   const stateDir = resolve(env.STATE_DIR ?? 'state');
   const manifest = await loadAgentManifest(agentsFile);
-  const agentConfigs = buildAgentConfigs({
-    manifest,
-    baseConfig,
-    stateDir,
-  });
+  const { config, agentModels } = buildMergedConfig({ manifest, baseConfig, stateDir });
 
-  await Promise.all(
-    agentConfigs.map(async ({ id, config }) => {
-      const client = createNousClient(config);
-      try {
-        await client.runWorker(signal);
-      } catch (error) {
-        if (signal?.aborted) {
-          return;
-        }
+  console.log(`[launcher] Starting single worker with ${manifest.agents.length} agents:`);
+  for (const agent of manifest.agents) {
+    console.log(`[launcher]   ${agent.id} (${agent.role}) — model: ${agent.model}`);
+  }
 
-        throw new Error(
-          `Agent ${id} stopped unexpectedly: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-    }),
-  );
+  const client = createNousClient(config, agentModels);
+  try {
+    await client.runWorker(signal);
+  } catch (error) {
+    if (signal?.aborted) {
+      return;
+    }
+    throw new Error(
+      `Worker stopped unexpectedly: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 }
 
 async function main() {

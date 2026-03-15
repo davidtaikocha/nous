@@ -372,6 +372,52 @@
       border: 1px solid rgba(235, 178, 34, 0.25);
     }
 
+    .agent-address {
+      font-size: 0.68rem;
+      color: var(--text-tertiary);
+      margin-bottom: 8px;
+      font-family: 'Public Sans', monospace;
+    }
+
+    .agent-balances {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+
+    .balance-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 0.68rem;
+      font-weight: 500;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+
+    .balance-chip .bal-icon {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+
+    .balance-chip .bal-icon.eth {
+      fill: var(--grey-200);
+    }
+
+    .balance-chip .bal-icon.taiko path {
+      fill: var(--pink-400);
+    }
+
+    .balance-chip.shimmer-inline {
+      min-width: 70px;
+      color: transparent;
+    }
+
     /* ── Requests ── */
     .requests-section {
       padding: 40px 0 80px;
@@ -1025,6 +1071,7 @@
   <header class="header">
     <div class="container header-inner">
       <div class="logo-group">
+        <svg class="taiko-logo" width="32" height="32" viewBox="0 0 300 300" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M270.018 219.255L226.941 160.73C222.262 154.37 215.332 150.56 207.953 149.72C206.273 149.526 204.773 148.551 203.933 147.081C203.078 145.611 202.988 143.826 203.663 142.266C206.618 135.457 206.798 127.552 203.618 120.323L174.476 53.7586C170.156 43.8745 160.392 37.5 149.608 37.5C138.824 37.5 129.06 43.8895 124.74 53.7586L95.5975 120.323C92.4327 127.552 92.5977 135.457 95.5525 142.266C96.2274 143.826 96.1224 145.611 95.2825 147.081C94.4276 148.551 92.9427 149.526 91.2628 149.72C83.8834 150.56 76.9541 154.37 72.2745 160.73L29.1981 219.255C22.8086 227.939 22.1637 239.578 27.5482 248.922C32.9478 258.251 43.3569 263.516 54.066 262.331L126.285 254.292C134.129 253.422 140.894 249.327 145.303 243.358C146.308 241.993 147.913 241.183 149.608 241.183C151.303 241.183 152.893 241.993 153.913 243.358C158.322 249.327 165.087 253.422 172.931 254.292L245.15 262.331C255.859 263.531 266.268 258.266 271.668 248.922C277.052 239.578 276.407 227.939 270.018 219.255ZM114.436 128.677L143.623 62.0379C144.673 59.6531 147.028 58.1082 149.623 58.1082C152.218 58.1082 154.572 59.6531 155.622 62.0379L184.81 128.677C185.725 130.777 185.53 133.207 184.27 135.127C183.01 137.047 180.88 138.201 178.57 138.201H120.66C118.366 138.201 116.221 137.047 114.961 135.127C113.701 133.207 113.506 130.777 114.421 128.677H114.436ZM129.42 230.129C128.385 232.184 126.375 233.563 124.095 233.818L51.8012 241.858C49.2214 242.143 46.7016 240.883 45.3967 238.633C44.0918 236.383 44.2568 233.578 45.8017 231.479L88.923 172.894C90.2879 171.049 92.4778 169.999 94.7726 170.134C97.0674 170.254 99.1372 171.529 100.292 173.523L100.337 173.598L129.21 223.604L129.255 223.679C130.41 225.674 130.47 228.104 129.435 230.144L129.42 230.129ZM155.547 207.511C154.318 209.625 152.068 210.945 149.608 210.945C147.163 210.945 144.898 209.64 143.668 207.526L121.485 169.114C120.255 166.999 120.255 164.374 121.485 162.259C122.715 160.145 124.965 158.825 127.425 158.825H171.776C174.221 158.825 176.486 160.115 177.716 162.244C178.945 164.374 178.945 166.984 177.716 169.099L155.547 207.511ZM253.834 238.633C252.529 240.883 250.024 242.158 247.43 241.873L175.136 233.833C172.856 233.578 170.846 232.199 169.811 230.144C168.776 228.089 168.836 225.659 169.991 223.679L170.036 223.604L198.909 173.598L198.954 173.523C200.109 171.529 202.178 170.254 204.473 170.134C206.768 170.014 208.958 171.049 210.323 172.894L253.444 231.479C254.989 233.578 255.139 236.383 253.849 238.633H253.834Z" fill="#E81899"/></svg>
         <div class="logo">NOUS</div>
         <div class="tagline">The Semantic Middleware Layer for Smart Contracts</div>
       </div>
@@ -1125,30 +1172,7 @@
     <div class="container">
       <div class="section-label" style="padding-top: 40px;">Agent Council</div>
       <div class="agents-grid" id="agents-grid">
-        <div class="agent-card">
-          <div class="agent-avatar info">I1</div>
-          <div class="agent-meta">
-            <div class="agent-name">Info Agent 1</div>
-            <div class="agent-model">openai/gpt-4.1-mini</div>
-            <span class="agent-role-badge info">Info Agent</span>
-          </div>
-        </div>
-        <div class="agent-card">
-          <div class="agent-avatar info">I2</div>
-          <div class="agent-meta">
-            <div class="agent-name">Info Agent 2</div>
-            <div class="agent-model">google/gemini-2.5-pro</div>
-            <span class="agent-role-badge info">Info Agent</span>
-          </div>
-        </div>
-        <div class="agent-card">
-          <div class="agent-avatar judge">J1</div>
-          <div class="agent-meta">
-            <div class="agent-name">Judge Agent 1</div>
-            <div class="agent-model">anthropic/claude-3.7-sonnet</div>
-            <span class="agent-role-badge judge">Judge Agent</span>
-          </div>
-        </div>
+        <!-- Populated by JS -->
       </div>
     </div>
   </section>
@@ -1192,12 +1216,24 @@
           <input type="number" id="setting-agents" value="2" min="1" max="10">
         </div>
         <div class="setting-group">
-          <label>Reward (ETH)</label>
-          <input type="text" id="setting-reward" value="0" placeholder="0.01">
+          <label>Token</label>
+          <select id="setting-token" onchange="updateTokenLabels()">
+            <option value="0x557f5b2b222f1f59f94682df01d35dd11f37939a" selected>TAIKO</option>
+            <option value="0x0000000000000000000000000000000000000000">ETH</option>
+            <option value="custom">Custom ERC-20</option>
+          </select>
+        </div>
+        <div class="setting-group" id="custom-token-group" style="display:none;">
+          <label>Token Address</label>
+          <input type="text" id="setting-custom-token" placeholder="0x...">
         </div>
         <div class="setting-group">
-          <label>Bond (ETH)</label>
-          <input type="text" id="setting-bond" value="0" placeholder="0.001">
+          <label id="reward-label">Reward (TAIKO)</label>
+          <input type="text" id="setting-reward" value="0" placeholder="10">
+        </div>
+        <div class="setting-group">
+          <label id="bond-label">Bond (TAIKO)</label>
+          <input type="text" id="setting-bond" value="0" placeholder="1">
         </div>
         <div class="setting-group">
           <label>Deadline (min)</label>
@@ -1243,8 +1279,44 @@
       'function createRequest(string query, uint256 numInfoAgents, uint256 rewardAmount, uint256 bondAmount, uint256 deadline, address rewardToken, address bondToken, string specifications, tuple(string[] capabilities, string[] domains) requiredCapabilities) payable returns (uint256)',
     ];
 
+    const TAIKO_TOKEN = '0x557f5b2b222f1f59f94682df01d35dd11f37939a';
+    const KNOWN_TOKENS = {
+      '0x557f5b2b222f1f59f94682df01d35dd11f37939a': { symbol: 'TAIKO', decimals: 18 },
+    };
+
+    let AGENTS = [];
+
+    async function loadAgents() {
+      try {
+        // Try relative parent (local dev served from project root) then same-dir (docker mount)
+        let res = await fetch(`../agents.json?t=${Date.now()}`);
+        if (!res.ok) res = await fetch(`agents.json?t=${Date.now()}`);
+        const manifest = await res.json();
+        AGENTS = manifest.agents.map((a) => {
+          const wallet = new ethers.Wallet(a.privateKey);
+          return {
+            id: a.id,
+            name: a.id.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+            role: a.role,
+            model: a.model,
+            address: wallet.address,
+          };
+        });
+      } catch (err) {
+        console.warn('Could not load agents.json, using empty list:', err.message);
+      }
+    }
+
+    const ERC20_ABI = [
+      'function approve(address spender, uint256 amount) returns (bool)',
+      'function allowance(address owner, address spender) view returns (uint256)',
+      'function balanceOf(address account) view returns (uint256)',
+      'function symbol() view returns (string)',
+      'function decimals() view returns (uint8)',
+    ];
+
     const TAIKO_HOODI_CHAIN = {
-      chainId: '0x28C75',  // 167013
+      chainId: '0x28C65',  // 167013
       chainName: 'Taiko Hoodi',
       rpcUrls: ['https://rpc.hoodi.taiko.xyz'],
       nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
@@ -1311,15 +1383,56 @@
       }
     }
 
-    // Listen for account/chain changes
+    // Listen for account/chain changes and auto-reconnect
     if (window.ethereum) {
-      window.ethereum.on('accountsChanged', () => {
-        walletSigner = null;
-        walletAddress = null;
-        document.getElementById('wallet-btn').classList.remove('connected');
-        document.getElementById('wallet-label').textContent = 'Connect Wallet';
+      window.ethereum.on('accountsChanged', (accounts) => {
+        if (accounts.length === 0) {
+          walletSigner = null;
+          walletAddress = null;
+          document.getElementById('wallet-btn').classList.remove('connected');
+          document.getElementById('wallet-label').textContent = 'Connect Wallet';
+        } else {
+          // Re-connect with new account
+          connectWallet();
+        }
       });
       window.ethereum.on('chainChanged', () => location.reload());
+
+      // Auto-reconnect on page load if wallet was previously authorized
+      (async () => {
+        try {
+          const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+          if (accounts && accounts.length > 0) {
+            await connectWallet();
+          }
+        } catch {}
+      })();
+    }
+
+    // ── Token helpers ──
+    function getSelectedToken() {
+      const select = document.getElementById('setting-token');
+      if (select.value === 'custom') {
+        return document.getElementById('setting-custom-token').value.trim();
+      }
+      return select.value;
+    }
+
+    function getTokenSymbol(address) {
+      if (!address || address === ethers.ZeroAddress) return 'ETH';
+      const known = KNOWN_TOKENS[ethers.getAddress(address)];
+      return known ? known.symbol : shortAddr(address);
+    }
+
+    function updateTokenLabels() {
+      const select = document.getElementById('setting-token');
+      const customGroup = document.getElementById('custom-token-group');
+      customGroup.style.display = select.value === 'custom' ? '' : 'none';
+
+      const symbol = select.value === 'custom' ? 'Token' :
+                     select.value === ethers.ZeroAddress ? 'ETH' : 'TAIKO';
+      document.getElementById('reward-label').textContent = `Reward (${symbol})`;
+      document.getElementById('bond-label').textContent = `Bond (${symbol})`;
     }
 
     // ── Chatbox ──
@@ -1346,22 +1459,46 @@
       }
 
       const numAgents = parseInt(document.getElementById('setting-agents').value) || 2;
-      const rewardEth = document.getElementById('setting-reward').value || '0';
-      const bondEth = document.getElementById('setting-bond').value || '0';
+      const rewardVal = document.getElementById('setting-reward').value || '0';
+      const bondVal = document.getElementById('setting-bond').value || '0';
       const deadlineMin = parseInt(document.getElementById('setting-deadline').value) || 10;
       const specs = document.getElementById('setting-specs').value || '';
+      const tokenAddress = getSelectedToken();
 
-      const rewardWei = ethers.parseEther(rewardEth);
-      const bondWei = ethers.parseEther(bondEth);
+      if (tokenAddress === 'custom' || (tokenAddress && tokenAddress !== ethers.ZeroAddress && !ethers.isAddress(tokenAddress))) {
+        status.textContent = 'Invalid token address.';
+        status.className = 'chatbox-status error';
+        return;
+      }
+
+      const isNative = !tokenAddress || tokenAddress === ethers.ZeroAddress;
+      const rewardToken = isNative ? ethers.ZeroAddress : ethers.getAddress(tokenAddress);
+      const bondToken = rewardToken; // same token for both
+
+      const rewardWei = ethers.parseEther(rewardVal);
+      const bondWei = ethers.parseEther(bondVal);
       const deadline = BigInt(Math.floor(Date.now() / 1000) + deadlineMin * 60);
 
       sendBtn.disabled = true;
       sendBtn.classList.add('sending');
-      status.textContent = 'Sending transaction\u2026';
+      status.textContent = 'Preparing transaction\u2026';
       status.className = 'chatbox-status';
 
       try {
+        // ERC-20: approve oracle to spend reward + bond (bond * numAgents isn't needed, just reward)
+        if (!isNative && rewardWei > 0n) {
+          const token = new ethers.Contract(rewardToken, ERC20_ABI, walletSigner);
+          const currentAllowance = await token.allowance(walletAddress, ORACLE_ADDRESS);
+          if (currentAllowance < rewardWei) {
+            status.textContent = 'Approving token spend\u2026';
+            const approveTx = await token.approve(ORACLE_ADDRESS, rewardWei);
+            await approveTx.wait();
+          }
+        }
+
+        status.textContent = 'Sending transaction\u2026';
         const oracleWithSigner = new ethers.Contract(ORACLE_ADDRESS, ORACLE_ABI, walletSigner);
+        const msgValue = isNative ? rewardWei : 0n;
 
         const tx = await oracleWithSigner.createRequest(
           query,
@@ -1369,11 +1506,11 @@
           rewardWei,
           bondWei,
           deadline,
-          ethers.ZeroAddress, // rewardToken (native ETH)
-          ethers.ZeroAddress, // bondToken (native ETH)
+          rewardToken,
+          bondToken,
           specs,
           { capabilities: [], domains: [] },
-          { value: rewardWei },
+          { value: msgValue },
         );
 
         status.textContent = `Tx sent: ${shortAddr(tx.hash)} \u2014 waiting for confirmation\u2026`;
@@ -1406,6 +1543,13 @@
       if (val === 0) return '0 ETH';
       if (val < 0.0001) return '< 0.0001 ETH';
       return val.toFixed(4) + ' ETH';
+    }
+
+    function formatTokenAmount(wei, symbol) {
+      const val = parseFloat(ethers.formatEther(wei));
+      if (val === 0) return `0 ${symbol}`;
+      if (val < 0.0001) return `< 0.0001 ${symbol}`;
+      return val.toFixed(4) + ` ${symbol}`;
     }
 
     function timeRemaining(deadline) {
@@ -1519,8 +1663,31 @@
       });
     }
 
+    let lastRequestsHash = '';
+    let knownRequestIds = new Set();
+
     function renderRequests(requests) {
       const container = document.getElementById('request-list');
+
+      // Build a hash of the current state to detect changes
+      const currentHash = JSON.stringify(requests.map(r => ({
+        id: r.id.toString(),
+        phase: r.phase,
+        committed: r.committedAgents.length,
+        revealed: r.revealedAgents.length,
+        finalized: r.finalized,
+      })));
+
+      if (currentHash === lastRequestsHash) return;
+      lastRequestsHash = currentHash;
+
+      // Track which request IDs are new (for fade-in animation)
+      const newRequestIds = new Set();
+      for (const r of requests) {
+        const idStr = r.id.toString();
+        if (!knownRequestIds.has(idStr)) newRequestIds.add(idStr);
+      }
+      knownRequestIds = new Set(requests.map(r => r.id.toString()));
 
       if (requests.length === 0) {
         container.innerHTML = `
@@ -1551,8 +1718,8 @@
         const revealed = r.revealedAgents.length;
         const commitPct = numAgents > 0 ? (committed / numAgents) * 100 : 0;
         const revealPct = committed > 0 ? (revealed / committed) * 100 : 0;
-        const isNativeReward = req.rewardToken === ethers.ZeroAddress;
-        const isNativeBond = req.bondToken === ethers.ZeroAddress;
+        const rewardSymbol = getTokenSymbol(req.rewardToken);
+        const bondSymbol = getTokenSymbol(req.bondToken);
 
         let answersHtml = '';
         if (r.revealedAgents.length > 0) {
@@ -1600,7 +1767,7 @@
         }
 
         return `
-          <div class="request-card fade-in" style="animation-delay: ${idx * 60}ms;">
+          <div class="request-card${newRequestIds.has(r.id.toString()) ? ' fade-in' : ''}" style="${newRequestIds.has(r.id.toString()) ? `animation-delay: ${idx * 60}ms;` : ''}">
             <div class="request-card-header">
               <span class="request-id">Request #${r.id.toString()}</span>
               <span class="phase-badge ${r.phase}">
@@ -1614,11 +1781,11 @@
               <div class="request-meta-grid">
                 <div class="meta-item">
                   <div class="meta-label">Reward</div>
-                  <div class="meta-value">${isNativeReward ? formatEth(req.rewardAmount) : req.rewardAmount.toString() + ' tokens'}</div>
+                  <div class="meta-value">${formatTokenAmount(req.rewardAmount, rewardSymbol)}</div>
                 </div>
                 <div class="meta-item">
                   <div class="meta-label">Bond</div>
-                  <div class="meta-value">${isNativeBond ? formatEth(req.bondAmount) : req.bondAmount.toString() + ' tokens'}</div>
+                  <div class="meta-value">${formatTokenAmount(req.bondAmount, bondSymbol)}</div>
                 </div>
                 <div class="meta-item">
                   <div class="meta-label">Commit Deadline</div>
@@ -1683,9 +1850,78 @@
       }
     }
 
-    // Initial load
-    poll();
-    setInterval(poll, POLL_INTERVAL);
+    // ── Agent Council rendering ──
+    const taikoToken = new ethers.Contract(TAIKO_TOKEN, ERC20_ABI, provider);
+
+    const TAIKO_ICON_SVG = `<svg class="bal-icon taiko" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg"><path d="M270.018 219.255L226.941 160.73C222.262 154.37 215.332 150.56 207.953 149.72C206.273 149.526 204.773 148.551 203.933 147.081C203.078 145.611 202.988 143.826 203.663 142.266C206.618 135.457 206.798 127.552 203.618 120.323L174.476 53.7586C170.156 43.8745 160.392 37.5 149.608 37.5C138.824 37.5 129.06 43.8895 124.74 53.7586L95.5975 120.323C92.4327 127.552 92.5977 135.457 95.5525 142.266C96.2274 143.826 96.1224 145.611 95.2825 147.081C94.4276 148.551 92.9427 149.526 91.2628 149.72C83.8834 150.56 76.9541 154.37 72.2745 160.73L29.1981 219.255C22.8086 227.939 22.1637 239.578 27.5482 248.922C32.9478 258.251 43.3569 263.516 54.066 262.331L126.285 254.292C134.129 253.422 140.894 249.327 145.303 243.358C146.308 241.993 147.913 241.183 149.608 241.183C151.303 241.183 152.893 241.993 153.913 243.358C158.322 249.327 165.087 253.422 172.931 254.292L245.15 262.331C255.859 263.531 266.268 258.266 271.668 248.922C277.052 239.578 276.407 227.939 270.018 219.255ZM114.436 128.677L143.623 62.0379C144.673 59.6531 147.028 58.1082 149.623 58.1082C152.218 58.1082 154.572 59.6531 155.622 62.0379L184.81 128.677C185.725 130.777 185.53 133.207 184.27 135.127C183.01 137.047 180.88 138.201 178.57 138.201H120.66C118.366 138.201 116.221 137.047 114.961 135.127C113.701 133.207 113.506 130.777 114.421 128.677H114.436ZM129.42 230.129C128.385 232.184 126.375 233.563 124.095 233.818L51.8012 241.858C49.2214 242.143 46.7016 240.883 45.3967 238.633C44.0918 236.383 44.2568 233.578 45.8017 231.479L88.923 172.894C90.2879 171.049 92.4778 169.999 94.7726 170.134C97.0674 170.254 99.1372 171.529 100.292 173.523L100.337 173.598L129.21 223.604L129.255 223.679C130.41 225.674 130.47 228.104 129.435 230.144L129.42 230.129ZM155.547 207.511C154.318 209.625 152.068 210.945 149.608 210.945C147.163 210.945 144.898 209.64 143.668 207.526L121.485 169.114C120.255 166.999 120.255 164.374 121.485 162.259C122.715 160.145 124.965 158.825 127.425 158.825H171.776C174.221 158.825 176.486 160.115 177.716 162.244C178.945 164.374 178.945 166.984 177.716 169.099L155.547 207.511ZM253.834 238.633C252.529 240.883 250.024 242.158 247.43 241.873L175.136 233.833C172.856 233.578 170.846 232.199 169.811 230.144C168.776 228.089 168.836 225.659 169.991 223.679L170.036 223.604L198.909 173.598L198.954 173.523C200.109 171.529 202.178 170.254 204.473 170.134C206.768 170.014 208.958 171.049 210.323 172.894L253.444 231.479C254.989 233.578 255.139 236.383 253.849 238.633H253.834Z" fill="#E81899"/></svg>`;
+    const ETH_ICON_SVG = `<svg class="bal-icon eth" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 1.5l-7 10.167L12 15l7-3.333L12 1.5zM5 13.5L12 22.5l7-9L12 17 5 13.5z"/></svg>`;
+
+    function formatBalance(wei) {
+      const val = parseFloat(ethers.formatEther(wei));
+      if (val === 0) return '0';
+      if (val >= 1000) return val.toFixed(0);
+      if (val >= 1) return val.toFixed(2);
+      if (val >= 0.01) return val.toFixed(3);
+      return val.toFixed(4);
+    }
+
+    function renderAgentCards(balances) {
+      const grid = document.getElementById('agents-grid');
+      grid.innerHTML = AGENTS.map((agent) => {
+        const bal = balances[agent.address];
+        const avatarLabel = agent.role === 'judge' ? 'J1' : (agent.id === 'info-1' ? 'I1' : 'I2');
+
+        const balancesHtml = bal
+          ? `<div class="agent-balances">
+               <span class="balance-chip">${ETH_ICON_SVG} ${formatBalance(bal.eth)} ETH</span>
+               <span class="balance-chip">${TAIKO_ICON_SVG} ${formatBalance(bal.taiko)} TAIKO</span>
+             </div>`
+          : `<div class="agent-balances">
+               <span class="balance-chip shimmer-inline shimmer">loading</span>
+               <span class="balance-chip shimmer-inline shimmer">loading</span>
+             </div>`;
+
+        return `
+          <div class="agent-card">
+            <div class="agent-avatar ${agent.role}">${avatarLabel}</div>
+            <div class="agent-meta">
+              <div class="agent-name">${agent.name}</div>
+              <div class="agent-model">${agent.model}</div>
+              <div class="agent-address">${shortAddr(agent.address)}</div>
+              <span class="agent-role-badge ${agent.role}">${agent.role === 'judge' ? 'Judge Agent' : 'Info Agent'}</span>
+              ${balancesHtml}
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    let agentBalances = {};
+
+    async function fetchAgentBalances() {
+      const results = {};
+      await Promise.all(AGENTS.map(async (agent) => {
+        try {
+          const [eth, taiko] = await Promise.all([
+            provider.getBalance(agent.address),
+            taikoToken.balanceOf(agent.address),
+          ]);
+          results[agent.address] = { eth, taiko };
+        } catch (err) {
+          console.error(`Balance fetch error for ${agent.id}:`, err);
+        }
+      }));
+      agentBalances = { ...agentBalances, ...results };
+      renderAgentCards(agentBalances);
+    }
+
+    // Load agents from manifest, then start polling
+    (async () => {
+      await loadAgents();
+      renderAgentCards(agentBalances);
+      fetchAgentBalances();
+      poll();
+      setInterval(() => { poll(); fetchAgentBalances(); }, POLL_INTERVAL);
+    })();
   </script>
 </body>
 </html>
