@@ -75,10 +75,7 @@ interface IAgentCouncilOracle {
 
     function distributeRewards(uint256 requestId) external;
 
-    function getResolution(uint256 requestId)
-        external
-        view
-        returns (bytes memory finalAnswer, bool finalized);
+    function getResolution(uint256 requestId) external view returns (bytes memory finalAnswer, bool finalized);
 
     // ============ Getters ============
 
@@ -89,8 +86,5 @@ interface IAgentCouncilOracle {
         view
         returns (address[] memory agents, bytes32[] memory commitments);
 
-    function getReveals(uint256 requestId)
-        external
-        view
-        returns (address[] memory agents, bytes[] memory answers);
+    function getReveals(uint256 requestId) external view returns (address[] memory agents, bytes[] memory answers);
 }

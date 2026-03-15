@@ -385,11 +385,7 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable 
     // ============ View Functions ============
 
     /// @inheritdoc IAgentCouncilOracle
-    function getResolution(uint256 requestId)
-        external
-        view
-        returns (bytes memory finalAnswer, bool finalized)
-    {
+    function getResolution(uint256 requestId) external view returns (bytes memory finalAnswer, bool finalized) {
         Phase phase = phases[requestId];
         finalized = phase == Phase.Finalized || phase == Phase.Distributed;
         finalAnswer = _finalAnswers[requestId];
@@ -414,11 +410,7 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable 
     }
 
     /// @inheritdoc IAgentCouncilOracle
-    function getReveals(uint256 requestId)
-        external
-        view
-        returns (address[] memory agents, bytes[] memory answers)
-    {
+    function getReveals(uint256 requestId) external view returns (address[] memory agents, bytes[] memory answers) {
         agents = _revealedAgents[requestId];
         answers = new bytes[](agents.length);
         for (uint256 i; i < agents.length; ++i) {
