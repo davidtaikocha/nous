@@ -14,12 +14,12 @@ function coerceToString(v: unknown): string {
 }
 
 export const infoAgentResultSchema = z.object({
-  answer: z.any().transform((v) => coerceToString(v)).pipe(z.string().min(1)),
+  answer: z.any().transform((v) => coerceToString(v) || 'No answer provided.'),
   confidence: z.any().transform((v) => {
     const n = Number(v);
     return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0.5;
   }),
-  reasoning: z.any().transform((v) => coerceToString(v)).pipe(z.string().min(1)),
+  reasoning: z.any().transform((v) => coerceToString(v) || 'No reasoning provided.'),
   sources: z.array(z.any().transform((v) => coerceToString(v))).default([]),
 });
 
