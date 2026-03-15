@@ -9,7 +9,24 @@ import {
 import { oracleAbi } from './oracleAbi.js';
 import type { PhaseName, RequestContext, OracleRequest } from './types.js';
 
-const ACTIVE_PHASES = new Set<PhaseName>(['committing', 'revealing', 'judging']);
+const erc20Abi = [
+  {
+    type: 'function',
+    name: 'allowance',
+    stateMutability: 'view',
+    inputs: [{ name: 'owner', type: 'address' }, { name: 'spender', type: 'address' }],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'approve',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'spender', type: 'address' }, { name: 'amount', type: 'uint256' }],
+    outputs: [{ name: '', type: 'bool' }],
+  },
+] as const;
+
+const ACTIVE_PHASES = new Set<PhaseName>(['committing', 'revealing', 'judging', 'finalized']);
 
 const PHASE_NAMES: Record<number, PhaseName> = {
   0: 'none',
@@ -57,6 +74,7 @@ export interface NousChainClient {
   ): Promise<Hex>;
   endCommitPhase(requestId: bigint): Promise<Hex>;
   endRevealPhase(requestId: bigint): Promise<Hex>;
+  distributeRewards(requestId: bigint): Promise<Hex>;
 }
 
 function normalizeRequest(raw: RawRequest): OracleRequest {
@@ -246,6 +264,31 @@ export function createNousChainClient({
       const request = await getRequest(requestId);
       const walletClient = getWalletClient(agentAddress);
 
+      // Approve ERC-20 bond token if needed
+      if (request.bondToken !== zeroAddress && request.bondAmount > 0n) {
+        const currentAllowance = await publicClient.readContract({
+          address: request.bondToken,
+          abi: erc20Abi,
+          functionName: 'allowance',
+          args: [agentAddress, oracleAddress],
+        });
+        if (currentAllowance < request.bondAmount) {
+          console.log(`[chain] Approving ${request.bondAmount} bond tokens for ${agentAddress}...`);
+          const approveHash = await walletClient.writeContract({
+            address: request.bondToken,
+            abi: erc20Abi,
+            functionName: 'approve',
+            args: [oracleAddress, request.bondAmount * 10n], // approve 10x to avoid repeated approvals
+            chain: walletClient.chain,
+            account: walletClient.account!,
+            gas: DEFAULT_GAS,
+          });
+          const approveReceipt = await publicClient.waitForTransactionReceipt({ hash: approveHash });
+          if (approveReceipt.status === 'reverted') throw new Error(`approve tx ${approveHash} reverted`);
+          console.log(`[chain] Bond token approved: ${approveHash}`);
+        }
+      }
+
       const hash = await withRetry(() => walletClient.writeContract({
         address: oracleAddress,
         abi: oracleAbi,
@@ -318,6 +361,21 @@ export function createNousChainClient({
       }));
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
       if (receipt.status === 'reverted') throw new Error(`endRevealPhase tx ${hash} reverted`);
+      return hash;
+    },
+    async distributeRewards(requestId) {
+      const walletClient = getMaintenanceWallet();
+      const hash = await withRetry(() => walletClient.writeContract({
+        address: oracleAddress,
+        abi: oracleAbi,
+        functionName: 'distributeRewards',
+        args: [requestId],
+        chain: walletClient.chain,
+        account: walletClient.account!,
+        gas: DEFAULT_GAS,
+      }));
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      if (receipt.status === 'reverted') throw new Error(`distributeRewards tx ${hash} reverted`);
       return hash;
     },
   };

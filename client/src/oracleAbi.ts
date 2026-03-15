@@ -135,4 +135,11 @@ export const oracleAbi = [
     inputs: [{ name: 'requestId', type: 'uint256' }],
     outputs: [],
   },
+  {
+    type: 'function',
+    name: 'distributeRewards',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'requestId', type: 'uint256' }],
+    outputs: [],
+  },
 ] as const;

@@ -280,7 +280,14 @@ export function createWorker({
       return;
     }
 
-    if (context.phase === 'finalized' || context.phase === 'distributed' || context.phase === 'failed') {
+    if (context.phase === 'finalized') {
+      logger.info(`[req=${requestId}] Request finalized, distributing rewards...`);
+      await chain.distributeRewards(requestId);
+      logger.info(`[req=${requestId}] Rewards distributed ✓`);
+      return;
+    }
+
+    if (context.phase === 'distributed' || context.phase === 'failed') {
       logger.info(`[req=${requestId}] Request is ${context.phase}, no action needed`);
     }
   }

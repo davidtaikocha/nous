@@ -696,6 +696,68 @@
       color: var(--text-primary);
     }
 
+    /* Reward distribution */
+    .reward-distribution {
+      margin-top: 16px;
+      padding: 16px;
+      background: linear-gradient(135deg, rgba(232, 24, 153, 0.06), rgba(71, 224, 160, 0.06));
+      border: 1px solid rgba(71, 224, 160, 0.2);
+      border-radius: var(--radius);
+    }
+
+    .reward-dist-label {
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--green-300);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .reward-dist-label svg {
+      width: 14px;
+      height: 14px;
+      stroke: var(--green-300);
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .reward-winner-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: rgba(71, 224, 160, 0.05);
+      border-radius: 8px;
+      margin-bottom: 6px;
+    }
+
+    .reward-winner-row:last-child { margin-bottom: 0; }
+
+    .reward-winner-addr {
+      font-size: 0.75rem;
+      font-family: 'Public Sans', monospace;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .winner-crown {
+      font-size: 0.7rem;
+    }
+
+    .reward-winner-amount {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--green-300);
+    }
+
     /* Empty state */
     .empty-state {
       text-align: center;
@@ -1762,7 +1824,29 @@
               <div class="final-answer-label">Final Answer</div>
               <div class="final-answer-text">${escapeHtml(typeof text === 'string' ? text : JSON.stringify(text))}</div>
               ${reasoningText ? `<div style="margin-top: 10px; font-size: 0.75rem; color: var(--text-tertiary); line-height: 1.5;"><strong>Reasoning:</strong> ${escapeHtml(reasoningText)}</div>` : ''}
-              ${r.winners && r.winners.length > 0 ? `<div style="margin-top: 8px; font-size: 0.7rem; color: var(--green-300);">Winners: ${r.winners.map(shortAddr).join(', ')}</div>` : ''}
+            </div>`;
+        }
+
+        let rewardHtml = '';
+        if (r.phase === 'distributed' && r.winners && r.winners.length > 0 && (req.rewardAmount > 0n || req.bondAmount > 0n)) {
+          const numWinners = r.winners.length;
+          const rewardPerWinner = req.rewardAmount / BigInt(numWinners);
+          const totalLosers = committed - numWinners;
+          const slashPerWinner = numWinners > 0 && req.bondAmount > 0n ? (BigInt(totalLosers) * req.bondAmount) / BigInt(numWinners) : 0n;
+          const payoutPerWinner = rewardPerWinner + req.bondAmount + slashPerWinner;
+
+          rewardHtml = `
+            <div class="reward-distribution">
+              <div class="reward-dist-label">
+                <svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                Rewards Distributed
+              </div>
+              ${r.winners.map((addr) => `
+                <div class="reward-winner-row">
+                  <span class="reward-winner-addr"><span class="winner-crown">&#x1F3C6;</span> ${shortAddr(addr)}</span>
+                  <span class="reward-winner-amount">+${formatTokenAmount(payoutPerWinner, rewardSymbol)}</span>
+                </div>`).join('')}
+              ${totalLosers > 0 ? `<div style="margin-top: 8px; font-size: 0.68rem; color: var(--red-300);">${totalLosers} agent(s) slashed: ${formatTokenAmount(req.bondAmount, bondSymbol)} each</div>` : ''}
             </div>`;
         }
 
@@ -1826,6 +1910,7 @@
 
               ${answersHtml}
               ${finalHtml}
+              ${rewardHtml}
             </div>
           </div>`;
       }).join('');
