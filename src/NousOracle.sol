@@ -1,0 +1,517 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import {IAgentCouncilOracle} from "./IAgentCouncilOracle.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
+/// @title NousOracle
+/// @notice ERC-8033 Agent Council Oracle implementation.
+///         A decentralized oracle using multi-agent councils with commit-reveal
+///         to resolve arbitrary information queries on-chain.
+contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable {
+    using SafeERC20 for IERC20;
+
+    // ============ Enums ============
+
+    enum Phase {
+        None,
+        Committing,
+        Revealing,
+        Judging,
+        Finalized,
+        Distributed,
+        Failed
+    }
+
+    // ============ Storage ============
+
+    /// @notice Next request ID counter.
+    uint256 public nextRequestId;
+
+    /// @notice Duration of the reveal phase after the commit deadline.
+    uint256 public revealDuration;
+
+    /// @notice Stored requests by ID.
+    mapping(uint256 => Request) internal _requests;
+
+    /// @notice Current phase of each request.
+    mapping(uint256 => Phase) public phases;
+
+    /// @notice Committed agents per request (ordered).
+    mapping(uint256 => address[]) internal _committedAgents;
+
+    /// @notice Commitment hash per agent per request.
+    mapping(uint256 => mapping(address => bytes32)) public commitments;
+
+    /// @notice Revealed agents per request (ordered).
+    mapping(uint256 => address[]) internal _revealedAgents;
+
+    /// @notice Revealed answer per agent per request.
+    mapping(uint256 => mapping(address => bytes)) internal _revealedAnswers;
+
+    /// @notice Whether an agent has revealed for a request.
+    mapping(uint256 => mapping(address => bool)) public hasRevealed;
+
+    /// @notice Selected judge for a request.
+    mapping(uint256 => address) public selectedJudge;
+
+    /// @notice Final answer for a request.
+    mapping(uint256 => bytes) internal _finalAnswers;
+
+    /// @notice Judge reasoning for a request.
+    mapping(uint256 => bytes) internal _reasoning;
+
+    /// @notice Winners for a request.
+    mapping(uint256 => address[]) internal _winners;
+
+    /// @notice Approved judges set.
+    mapping(address => bool) public isApprovedJudge;
+    address[] internal _judgeList;
+
+    /// @notice Reveal phase deadline per request.
+    mapping(uint256 => uint256) public revealDeadlines;
+
+    // ============ Errors ============
+
+    error InvalidPhase(uint256 requestId, Phase expected, Phase actual);
+    error DeadlineMustBeFuture();
+    error DeadlinePassed();
+    error DeadlineNotPassed();
+    error NumInfoAgentsMustBePositive();
+    error InsufficientPayment(uint256 required, uint256 provided);
+    error MaxAgentsReached(uint256 requestId);
+    error AlreadyCommitted(uint256 requestId, address agent);
+    error CommitmentNotFound(uint256 requestId, address agent);
+    error AlreadyRevealed(uint256 requestId, address agent);
+    error CommitmentMismatch(uint256 requestId, address agent);
+    error QuorumNotMet(uint256 requestId, uint256 revealed, uint256 required);
+    error NotSelectedJudge(uint256 requestId, address caller);
+    error WinnerNotRevealed(uint256 requestId, address winner);
+    error NoJudgesAvailable();
+    error NoWinners();
+    error TransferFailed();
+
+    // ============ Initializer ============
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    /// @notice Initialize the oracle.
+    /// @param owner_ The owner address (manages judges, upgrades).
+    /// @param revealDuration_ Duration in seconds for the reveal phase.
+    function initialize(address owner_, uint256 revealDuration_) external initializer {
+        __Ownable_init(owner_);
+        revealDuration = revealDuration_;
+        nextRequestId = 1;
+    }
+
+    // ============ Judge Management ============
+
+    /// @notice Add an approved judge.
+    function addJudge(address judge) external onlyOwner {
+        if (!isApprovedJudge[judge]) {
+            isApprovedJudge[judge] = true;
+            _judgeList.push(judge);
+        }
+    }
+
+    /// @notice Remove an approved judge.
+    function removeJudge(address judge) external onlyOwner {
+        if (isApprovedJudge[judge]) {
+            isApprovedJudge[judge] = false;
+            uint256 len = _judgeList.length;
+            for (uint256 i; i < len; ++i) {
+                if (_judgeList[i] == judge) {
+                    _judgeList[i] = _judgeList[len - 1];
+                    _judgeList.pop();
+                    break;
+                }
+            }
+        }
+    }
+
+    /// @notice Get all approved judges.
+    function getJudges() external view returns (address[] memory) {
+        return _judgeList;
+    }
+
+    // ============ Core Functions ============
+
+    /// @inheritdoc IAgentCouncilOracle
+    function createRequest(
+        string calldata query,
+        uint256 numInfoAgents,
+        uint256 rewardAmount,
+        uint256 bondAmount,
+        uint256 deadline,
+        address rewardToken,
+        address bondToken,
+        string calldata specifications,
+        AgentCapabilities calldata requiredCapabilities
+    ) external payable returns (uint256 requestId) {
+        if (deadline <= block.timestamp) revert DeadlineMustBeFuture();
+        if (numInfoAgents == 0) revert NumInfoAgentsMustBePositive();
+        if (_judgeList.length == 0) revert NoJudgesAvailable();
+
+        // Collect reward from requester
+        if (rewardToken == address(0)) {
+            if (msg.value < rewardAmount) {
+                revert InsufficientPayment(rewardAmount, msg.value);
+            }
+            // Refund excess
+            uint256 excess = msg.value - rewardAmount;
+            if (excess > 0) {
+                (bool ok,) = msg.sender.call{value: excess}("");
+                if (!ok) revert TransferFailed();
+            }
+        } else {
+            IERC20(rewardToken).safeTransferFrom(msg.sender, address(this), rewardAmount);
+        }
+
+        requestId = nextRequestId++;
+
+        Request storage req = _requests[requestId];
+        req.requester = msg.sender;
+        req.rewardAmount = rewardAmount;
+        req.rewardToken = rewardToken;
+        req.bondAmount = bondAmount;
+        req.bondToken = bondToken;
+        req.numInfoAgents = numInfoAgents;
+        req.deadline = deadline;
+        req.query = query;
+        req.specifications = specifications;
+        req.requiredCapabilities = requiredCapabilities;
+
+        phases[requestId] = Phase.Committing;
+
+        emit RequestCreated(requestId, msg.sender, query, rewardAmount, numInfoAgents, bondAmount);
+    }
+
+    /// @inheritdoc IAgentCouncilOracle
+    function commit(uint256 requestId, bytes32 commitment) external payable {
+        _requirePhase(requestId, Phase.Committing);
+
+        Request storage req = _requests[requestId];
+        if (block.timestamp > req.deadline) revert DeadlinePassed();
+        if (_committedAgents[requestId].length >= req.numInfoAgents) {
+            revert MaxAgentsReached(requestId);
+        }
+        if (commitments[requestId][msg.sender] != bytes32(0)) {
+            revert AlreadyCommitted(requestId, msg.sender);
+        }
+
+        // Collect bond
+        if (req.bondToken == address(0)) {
+            if (msg.value < req.bondAmount) {
+                revert InsufficientPayment(req.bondAmount, msg.value);
+            }
+            uint256 excess = msg.value - req.bondAmount;
+            if (excess > 0) {
+                (bool ok,) = msg.sender.call{value: excess}("");
+                if (!ok) revert TransferFailed();
+            }
+        } else {
+            IERC20(req.bondToken).safeTransferFrom(msg.sender, address(this), req.bondAmount);
+        }
+
+        commitments[requestId][msg.sender] = commitment;
+        _committedAgents[requestId].push(msg.sender);
+
+        emit AgentCommitted(requestId, msg.sender, commitment);
+
+        // Auto-transition to revealing when max agents reached
+        if (_committedAgents[requestId].length == req.numInfoAgents) {
+            phases[requestId] = Phase.Revealing;
+            revealDeadlines[requestId] = block.timestamp + revealDuration;
+        }
+    }
+
+    /// @notice Manually transition from Committing to Revealing after deadline.
+    ///         Anyone can call this once the commit deadline has passed.
+    function endCommitPhase(uint256 requestId) external {
+        _requirePhase(requestId, Phase.Committing);
+
+        Request storage req = _requests[requestId];
+        if (block.timestamp <= req.deadline) revert DeadlineNotPassed();
+
+        if (_committedAgents[requestId].length == 0) {
+            // No agents committed — fail and refund requester
+            phases[requestId] = Phase.Failed;
+            _refundRequester(requestId);
+            emit ResolutionFailed(requestId, "No agents committed");
+            return;
+        }
+
+        phases[requestId] = Phase.Revealing;
+        revealDeadlines[requestId] = block.timestamp + revealDuration;
+    }
+
+    /// @inheritdoc IAgentCouncilOracle
+    function reveal(uint256 requestId, bytes calldata answer, uint256 nonce) external {
+        _requirePhase(requestId, Phase.Revealing);
+
+        if (block.timestamp > revealDeadlines[requestId]) revert DeadlinePassed();
+        if (commitments[requestId][msg.sender] == bytes32(0)) {
+            revert CommitmentNotFound(requestId, msg.sender);
+        }
+        if (hasRevealed[requestId][msg.sender]) {
+            revert AlreadyRevealed(requestId, msg.sender);
+        }
+
+        // Verify commitment
+        bytes32 expected = keccak256(abi.encode(answer, nonce));
+        if (expected != commitments[requestId][msg.sender]) {
+            revert CommitmentMismatch(requestId, msg.sender);
+        }
+
+        hasRevealed[requestId][msg.sender] = true;
+        _revealedAgents[requestId].push(msg.sender);
+        _revealedAnswers[requestId][msg.sender] = answer;
+
+        emit AgentRevealed(requestId, msg.sender, answer);
+
+        // Auto-transition if all committed agents have revealed
+        if (_revealedAgents[requestId].length == _committedAgents[requestId].length) {
+            _transitionToJudging(requestId);
+        }
+    }
+
+    /// @notice Manually transition from Revealing to Judging after reveal deadline.
+    ///         Checks quorum (>50% of committed agents must have revealed).
+    function endRevealPhase(uint256 requestId) external {
+        _requirePhase(requestId, Phase.Revealing);
+
+        if (block.timestamp <= revealDeadlines[requestId]) revert DeadlineNotPassed();
+
+        uint256 committed = _committedAgents[requestId].length;
+        uint256 revealed = _revealedAgents[requestId].length;
+        uint256 quorum = (committed / 2) + 1; // 50% + 1
+
+        if (revealed < quorum) {
+            // Quorum not met — fail, refund requester, return bonds to revealers
+            phases[requestId] = Phase.Failed;
+            _refundRequester(requestId);
+            _refundRevealedAgentBonds(requestId);
+            emit ResolutionFailed(requestId, "Quorum not met");
+            return;
+        }
+
+        _transitionToJudging(requestId);
+    }
+
+    /// @inheritdoc IAgentCouncilOracle
+    function aggregate(
+        uint256 requestId,
+        bytes calldata finalAnswer,
+        address[] calldata winners,
+        bytes calldata reasoning
+    ) external {
+        _requirePhase(requestId, Phase.Judging);
+
+        if (msg.sender != selectedJudge[requestId]) {
+            revert NotSelectedJudge(requestId, msg.sender);
+        }
+        if (winners.length == 0) revert NoWinners();
+
+        // Validate all winners actually revealed
+        for (uint256 i; i < winners.length; ++i) {
+            if (!hasRevealed[requestId][winners[i]]) {
+                revert WinnerNotRevealed(requestId, winners[i]);
+            }
+        }
+
+        _finalAnswers[requestId] = finalAnswer;
+        _reasoning[requestId] = reasoning;
+        _winners[requestId] = winners;
+        phases[requestId] = Phase.Finalized;
+
+        emit ResolutionFinalized(requestId, finalAnswer);
+    }
+
+    /// @inheritdoc IAgentCouncilOracle
+    function distributeRewards(uint256 requestId) external {
+        _requirePhase(requestId, Phase.Finalized);
+
+        Request storage req = _requests[requestId];
+        address[] storage winners = _winners[requestId];
+        uint256 numWinners = winners.length;
+
+        // Calculate per-winner reward share
+        uint256 rewardPerWinner = req.rewardAmount / numWinners;
+
+        // Calculate slashed bonds from losers
+        uint256 totalSlashed = _calculateSlashedBonds(requestId);
+        uint256 slashPerWinner = numWinners > 0 ? totalSlashed / numWinners : 0;
+
+        address[] memory winnerList = new address[](numWinners);
+        uint256[] memory amounts = new uint256[](numWinners);
+
+        for (uint256 i; i < numWinners; ++i) {
+            address winner = winners[i];
+            winnerList[i] = winner;
+
+            // Transfer reward share
+            uint256 totalPayout = rewardPerWinner;
+            if (req.rewardToken == address(0)) {
+                (bool ok,) = winner.call{value: rewardPerWinner}("");
+                if (!ok) revert TransferFailed();
+            } else {
+                IERC20(req.rewardToken).safeTransfer(winner, rewardPerWinner);
+            }
+
+            // Return winner's bond + their share of slashed bonds
+            uint256 bondPayout = req.bondAmount + slashPerWinner;
+            totalPayout += bondPayout;
+            if (req.bondToken == address(0)) {
+                (bool ok,) = winner.call{value: bondPayout}("");
+                if (!ok) revert TransferFailed();
+            } else {
+                IERC20(req.bondToken).safeTransfer(winner, bondPayout);
+            }
+
+            amounts[i] = totalPayout;
+        }
+
+        phases[requestId] = Phase.Distributed;
+
+        emit RewardsDistributed(requestId, winnerList, amounts);
+    }
+
+    // ============ View Functions ============
+
+    /// @inheritdoc IAgentCouncilOracle
+    function getResolution(uint256 requestId)
+        external
+        view
+        returns (bytes memory finalAnswer, bool finalized)
+    {
+        Phase phase = phases[requestId];
+        finalized = phase == Phase.Finalized || phase == Phase.Distributed;
+        finalAnswer = _finalAnswers[requestId];
+    }
+
+    /// @inheritdoc IAgentCouncilOracle
+    function getRequest(uint256 requestId) external view returns (Request memory) {
+        return _requests[requestId];
+    }
+
+    /// @inheritdoc IAgentCouncilOracle
+    function getCommits(uint256 requestId)
+        external
+        view
+        returns (address[] memory agents, bytes32[] memory commitHash)
+    {
+        agents = _committedAgents[requestId];
+        commitHash = new bytes32[](agents.length);
+        for (uint256 i; i < agents.length; ++i) {
+            commitHash[i] = commitments[requestId][agents[i]];
+        }
+    }
+
+    /// @inheritdoc IAgentCouncilOracle
+    function getReveals(uint256 requestId)
+        external
+        view
+        returns (address[] memory agents, bytes[] memory answers)
+    {
+        agents = _revealedAgents[requestId];
+        answers = new bytes[](agents.length);
+        for (uint256 i; i < agents.length; ++i) {
+            answers[i] = _revealedAnswers[requestId][agents[i]];
+        }
+    }
+
+    /// @notice Get the judge's reasoning for a finalized request.
+    function getReasoning(uint256 requestId) external view returns (bytes memory) {
+        return _reasoning[requestId];
+    }
+
+    /// @notice Get the winners for a finalized request.
+    function getWinners(uint256 requestId) external view returns (address[] memory) {
+        return _winners[requestId];
+    }
+
+    // ============ Internal ============
+
+    function _requirePhase(uint256 requestId, Phase expected) internal view {
+        Phase actual = phases[requestId];
+        if (actual != expected) revert InvalidPhase(requestId, expected, actual);
+    }
+
+    function _transitionToJudging(uint256 requestId) internal {
+        // Pseudo-random judge selection from the approved pool
+        uint256 judgeCount = _judgeList.length;
+        if (judgeCount == 0) revert NoJudgesAvailable();
+
+        uint256 seed = uint256(keccak256(abi.encode(blockhash(block.number - 1), requestId)));
+        address judge = _judgeList[seed % judgeCount];
+
+        selectedJudge[requestId] = judge;
+        phases[requestId] = Phase.Judging;
+
+        emit JudgeSelected(requestId, judge);
+    }
+
+    function _refundRequester(uint256 requestId) internal {
+        Request storage req = _requests[requestId];
+        if (req.rewardAmount == 0) return;
+
+        if (req.rewardToken == address(0)) {
+            (bool ok,) = req.requester.call{value: req.rewardAmount}("");
+            if (!ok) revert TransferFailed();
+        } else {
+            IERC20(req.rewardToken).safeTransfer(req.requester, req.rewardAmount);
+        }
+    }
+
+    function _refundRevealedAgentBonds(uint256 requestId) internal {
+        Request storage req = _requests[requestId];
+        if (req.bondAmount == 0) return;
+
+        address[] storage agents = _revealedAgents[requestId];
+        for (uint256 i; i < agents.length; ++i) {
+            if (req.bondToken == address(0)) {
+                (bool ok,) = agents[i].call{value: req.bondAmount}("");
+                if (!ok) revert TransferFailed();
+            } else {
+                IERC20(req.bondToken).safeTransfer(agents[i], req.bondAmount);
+            }
+        }
+    }
+
+    function _calculateSlashedBonds(uint256 requestId) internal view returns (uint256) {
+        Request storage req = _requests[requestId];
+        address[] storage winners = _winners[requestId];
+        address[] storage revealed = _revealedAgents[requestId];
+
+        // Build a quick lookup of winners
+        uint256 numWinners = winners.length;
+        uint256 losers = 0;
+
+        for (uint256 i; i < revealed.length; ++i) {
+            bool isWinner = false;
+            for (uint256 j; j < numWinners; ++j) {
+                if (revealed[i] == winners[j]) {
+                    isWinner = true;
+                    break;
+                }
+            }
+            if (!isWinner) losers++;
+        }
+
+        // Also count non-revealers as losers (their bonds are also slashed)
+        uint256 committed = _committedAgents[requestId].length;
+        uint256 nonRevealers = committed - revealed.length;
+        losers += nonRevealers;
+
+        return losers * req.bondAmount;
+    }
+
+    /// @notice UUPS authorization — only owner can upgrade.
+    function _authorizeUpgrade(address) internal override onlyOwner {}
+}
