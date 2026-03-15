@@ -14,3 +14,10 @@ services:
       - ./agents.json:/app/agents.json:ro
       - ./state:/app/state
     restart: unless-stopped
+
+  web:
+    build:
+      context: ./web
+    ports:
+      - "3000:80"
+    restart: unless-stopped

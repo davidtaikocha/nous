@@ -1,0 +1,1691 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nous — Agent Council Oracle</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://api.fontshare.com/v2/css?f[]=clash-grotesk@200,300,400,500,600,700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js"></script>
+  <style>
+    :root {
+      /* Taiko color system */
+      --pink-50: #FFC6E9;
+      --pink-200: #FF6FC8;
+      --pink-400: #E81899;
+      --pink-500: #C8047D;
+      --pink-700: #7D004E;
+      --pink-800: #4B002F;
+
+      --grey-0: #FFFFFF;
+      --grey-5: #FAFAFA;
+      --grey-10: #F3F3F3;
+      --grey-50: #E3E3E3;
+      --grey-100: #CACBCE;
+      --grey-200: #ADB1B8;
+      --grey-300: #91969F;
+      --grey-400: #767C89;
+      --grey-500: #5D636F;
+      --grey-600: #444A55;
+      --grey-700: #2B303B;
+      --grey-800: #191E28;
+      --grey-900: #0B101B;
+      --grey-1000: #050912;
+
+      --green-300: #47E0A0;
+      --green-700: #005E36;
+      --green-800: #00321D;
+
+      --red-300: #F15C5D;
+      --red-800: #440000;
+
+      --yellow-400: #EBB222;
+      --yellow-800: #382800;
+
+      --blue-400: #006AFF;
+      --blue-500: #0052CC;
+      --blue-700: #002966;
+
+      /* Semantic tokens */
+      --bg-primary: var(--grey-900);
+      --bg-elevated: var(--grey-800);
+      --bg-surface: var(--grey-700);
+      --text-primary: var(--grey-10);
+      --text-secondary: var(--grey-200);
+      --text-tertiary: var(--grey-500);
+      --border: var(--grey-600);
+      --brand: var(--pink-500);
+      --brand-accent: var(--pink-400);
+      --brand-light: var(--pink-200);
+      --link: var(--pink-200);
+
+      --radius: 10px;
+      --radius-lg: 16px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Public Sans', -apple-system, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Background effect */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 20% 10%, rgba(200, 4, 125, 0.06) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 80% 80%, rgba(0, 106, 255, 0.04) 0%, transparent 60%),
+        linear-gradient(180deg, var(--grey-900) 0%, var(--grey-1000) 100%);
+      z-index: -2;
+    }
+
+    /* Subtle grid overlay */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(68, 74, 85, 0.15) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(68, 74, 85, 0.15) 1px, transparent 1px);
+      background-size: 60px 60px;
+      z-index: -1;
+    }
+
+    h1, h2, h3, h4 {
+      font-family: 'Clash Grotesk', 'Public Sans', sans-serif;
+    }
+
+    a { color: var(--link); text-decoration: none; }
+    a:hover { color: var(--pink-50); }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* ── Header ── */
+    .header {
+      padding: 32px 0 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .logo-group {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .logo {
+      font-family: 'Clash Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: 2rem;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, var(--pink-200), var(--pink-400));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .tagline {
+      font-size: 0.8rem;
+      color: var(--text-tertiary);
+      font-weight: 400;
+      max-width: 200px;
+      line-height: 1.3;
+    }
+
+    .chain-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      font-family: 'Public Sans', monospace;
+    }
+
+    .chain-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green-300);
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(71, 224, 160, 0.4); }
+      50% { opacity: 0.8; box-shadow: 0 0 0 6px rgba(71, 224, 160, 0); }
+    }
+
+    /* ── Phase Pipeline ── */
+    .pipeline-section {
+      padding: 48px 0 40px;
+    }
+
+    .section-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+      margin-bottom: 24px;
+    }
+
+    .pipeline {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      padding: 24px 0;
+    }
+
+    .phase-node {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .phase-ring {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-elevated);
+      transition: all 0.4s ease;
+      position: relative;
+    }
+
+    .phase-ring svg {
+      width: 22px;
+      height: 22px;
+      stroke: var(--text-tertiary);
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transition: stroke 0.4s ease;
+    }
+
+    .phase-node.active .phase-ring {
+      border-color: var(--brand-accent);
+      background: rgba(232, 24, 153, 0.1);
+      box-shadow: 0 0 24px rgba(232, 24, 153, 0.2), 0 0 48px rgba(232, 24, 153, 0.05);
+    }
+
+    .phase-node.active .phase-ring svg { stroke: var(--brand-accent); }
+
+    .phase-node.completed .phase-ring {
+      border-color: var(--green-300);
+      background: rgba(71, 224, 160, 0.08);
+    }
+
+    .phase-node.completed .phase-ring svg { stroke: var(--green-300); }
+
+    .phase-node.failed .phase-ring {
+      border-color: var(--red-300);
+      background: rgba(241, 92, 93, 0.08);
+    }
+
+    .phase-node.failed .phase-ring svg { stroke: var(--red-300); }
+
+    .phase-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+      transition: color 0.4s ease;
+    }
+
+    .phase-node.active .phase-label { color: var(--brand-accent); }
+    .phase-node.completed .phase-label { color: var(--green-300); }
+
+    .phase-connector {
+      width: 80px;
+      height: 2px;
+      background: var(--border);
+      position: relative;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .phase-connector.active::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, var(--brand-accent), var(--brand-light));
+      animation: flow 1.5s ease-in-out infinite;
+    }
+
+    .phase-connector.completed { background: var(--green-300); }
+
+    @keyframes flow {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+
+    /* ── Agent Council ── */
+    .council-section {
+      padding: 0 0 40px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .agents-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+    }
+
+    .agent-card {
+      background: linear-gradient(226deg, rgba(93, 99, 111, 0.08) 1.26%, rgba(25, 30, 40, 0.2) 100%);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .agent-card:hover {
+      border-color: var(--brand-light);
+      box-shadow: 0 0 0 1px rgba(255, 111, 200, 0.1);
+    }
+
+    .agent-avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.85rem;
+      flex-shrink: 0;
+      color: var(--grey-900);
+    }
+
+    .agent-avatar.info { background: linear-gradient(135deg, var(--pink-200), var(--pink-400)); }
+    .agent-avatar.judge { background: linear-gradient(135deg, var(--yellow-400), #F0A000); }
+
+    .agent-meta { flex: 1; min-width: 0; }
+
+    .agent-name {
+      font-family: 'Clash Grotesk', sans-serif;
+      font-weight: 600;
+      font-size: 0.95rem;
+      margin-bottom: 4px;
+    }
+
+    .agent-model {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+
+    .agent-role-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .agent-role-badge.info {
+      background: rgba(232, 24, 153, 0.12);
+      color: var(--pink-200);
+      border: 1px solid rgba(232, 24, 153, 0.25);
+    }
+
+    .agent-role-badge.judge {
+      background: rgba(235, 178, 34, 0.12);
+      color: var(--yellow-400);
+      border: 1px solid rgba(235, 178, 34, 0.25);
+    }
+
+    /* ── Requests ── */
+    .requests-section {
+      padding: 40px 0 80px;
+    }
+
+    .requests-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+
+    .refresh-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.7rem;
+      color: var(--text-tertiary);
+    }
+
+    .refresh-spinner {
+      width: 12px;
+      height: 12px;
+      border: 1.5px solid var(--border);
+      border-top-color: var(--brand-accent);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .request-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .request-card {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      transition: border-color 0.3s ease;
+    }
+
+    .request-card:hover { border-color: var(--grey-500); }
+
+    .request-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid rgba(68, 74, 85, 0.5);
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .request-id {
+      font-family: 'Clash Grotesk', sans-serif;
+      font-weight: 600;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    .phase-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .phase-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    .phase-badge.committing {
+      background: rgba(232, 24, 153, 0.12);
+      color: var(--pink-200);
+    }
+    .phase-badge.committing .phase-dot {
+      background: var(--pink-200);
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+
+    .phase-badge.revealing {
+      background: rgba(0, 106, 255, 0.12);
+      color: #5AAAFF;
+    }
+    .phase-badge.revealing .phase-dot {
+      background: #5AAAFF;
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+
+    .phase-badge.judging {
+      background: rgba(235, 178, 34, 0.12);
+      color: var(--yellow-400);
+    }
+    .phase-badge.judging .phase-dot {
+      background: var(--yellow-400);
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+
+    .phase-badge.finalized, .phase-badge.distributed {
+      background: rgba(71, 224, 160, 0.12);
+      color: var(--green-300);
+    }
+    .phase-badge.finalized .phase-dot,
+    .phase-badge.distributed .phase-dot { background: var(--green-300); }
+
+    .phase-badge.failed {
+      background: rgba(241, 92, 93, 0.12);
+      color: var(--red-300);
+    }
+    .phase-badge.failed .phase-dot { background: var(--red-300); }
+
+    .request-card-body { padding: 20px; }
+
+    .request-query {
+      font-size: 1.05rem;
+      font-weight: 500;
+      line-height: 1.5;
+      margin-bottom: 16px;
+      color: var(--text-primary);
+    }
+
+    .request-query::before {
+      content: '\201C';
+      color: var(--brand-accent);
+      font-size: 1.4em;
+      font-weight: 700;
+      margin-right: 2px;
+    }
+
+    .request-query::after {
+      content: '\201D';
+      color: var(--brand-accent);
+      font-size: 1.4em;
+      font-weight: 700;
+      margin-left: 2px;
+    }
+
+    .request-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .meta-item {
+      background: var(--bg-surface);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+    }
+
+    .meta-label {
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+      margin-bottom: 4px;
+    }
+
+    .meta-value {
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--text-primary);
+      word-break: break-all;
+    }
+
+    .meta-value.mono {
+      font-family: 'Public Sans', monospace;
+      font-size: 0.75rem;
+    }
+
+    /* Agent participation bars */
+    .participation-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .bar-track {
+      flex: 1;
+      height: 4px;
+      background: var(--bg-primary);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.4s ease;
+    }
+
+    .bar-fill.pink { background: var(--brand-accent); }
+    .bar-fill.blue { background: #5AAAFF; }
+    .bar-fill.green { background: var(--green-300); }
+
+    .bar-label {
+      font-size: 0.7rem;
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+
+    /* Reveal section */
+    .reveals-section {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(68, 74, 85, 0.5);
+    }
+
+    .reveal-card {
+      background: var(--bg-surface);
+      border-radius: var(--radius);
+      padding: 14px;
+      margin-top: 10px;
+    }
+
+    .reveal-agent {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--text-tertiary);
+      margin-bottom: 6px;
+      letter-spacing: 0.04em;
+    }
+
+    .reveal-answer {
+      font-size: 0.82rem;
+      line-height: 1.5;
+      color: var(--text-secondary);
+    }
+
+    .reveal-confidence {
+      display: inline-block;
+      margin-top: 6px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.65rem;
+      font-weight: 600;
+      background: rgba(71, 224, 160, 0.1);
+      color: var(--green-300);
+      border: 1px solid rgba(71, 224, 160, 0.2);
+    }
+
+    /* Final answer */
+    .final-answer-section {
+      margin-top: 16px;
+      padding: 16px;
+      background: rgba(71, 224, 160, 0.05);
+      border: 1px solid rgba(71, 224, 160, 0.15);
+      border-radius: var(--radius);
+    }
+
+    .final-answer-label {
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--green-300);
+      margin-bottom: 8px;
+    }
+
+    .final-answer-text {
+      font-size: 0.9rem;
+      line-height: 1.6;
+      color: var(--text-primary);
+    }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 80px 24px;
+    }
+
+    .empty-icon {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 20px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, rgba(232, 24, 153, 0.1), rgba(0, 106, 255, 0.1));
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: pulse-icon 3s ease-in-out infinite;
+    }
+
+    @keyframes pulse-icon {
+      0%, 100% { transform: scale(1); opacity: 0.8; }
+      50% { transform: scale(1.05); opacity: 1; }
+    }
+
+    .empty-icon svg {
+      width: 28px;
+      height: 28px;
+      stroke: var(--text-tertiary);
+      fill: none;
+      stroke-width: 1.5;
+    }
+
+    .empty-title {
+      font-family: 'Clash Grotesk', sans-serif;
+      font-weight: 600;
+      font-size: 1.1rem;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+
+    .empty-desc {
+      font-size: 0.82rem;
+      color: var(--text-tertiary);
+      max-width: 400px;
+      margin: 0 auto;
+      line-height: 1.5;
+    }
+
+    /* How it works */
+    .how-it-works {
+      padding: 40px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+
+    .step-card {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+    }
+
+    .step-number {
+      font-family: 'Clash Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: 1.6rem;
+      color: var(--brand-accent);
+      opacity: 0.6;
+      margin-bottom: 8px;
+    }
+
+    .step-title {
+      font-family: 'Clash Grotesk', sans-serif;
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-bottom: 6px;
+    }
+
+    .step-desc {
+      font-size: 0.75rem;
+      color: var(--text-tertiary);
+      line-height: 1.5;
+    }
+
+    /* Footer */
+    .footer {
+      padding: 24px 0;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      font-size: 0.7rem;
+      color: var(--text-tertiary);
+    }
+
+    .footer a { color: var(--brand-light); }
+
+    /* Loading shimmer */
+    .shimmer {
+      background: linear-gradient(90deg,
+        var(--bg-surface) 25%,
+        rgba(93, 99, 111, 0.15) 50%,
+        var(--bg-surface) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s ease-in-out infinite;
+      border-radius: var(--radius);
+    }
+
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* Error banner */
+    .error-banner {
+      background: var(--red-800);
+      border: 1px solid rgba(241, 92, 93, 0.3);
+      color: var(--red-300);
+      padding: 12px 16px;
+      border-radius: var(--radius);
+      font-size: 0.8rem;
+      margin-bottom: 16px;
+      display: none;
+    }
+
+    /* ── Wallet Button ── */
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .wallet-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: var(--brand);
+      border: 1px solid var(--brand-accent);
+      border-radius: 999px;
+      color: var(--grey-0);
+      font-family: 'Public Sans', sans-serif;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .wallet-btn:hover {
+      background: var(--brand-accent);
+      box-shadow: 0 0 16px rgba(232, 24, 153, 0.3);
+    }
+
+    .wallet-btn.connected {
+      background: var(--bg-elevated);
+      border-color: var(--green-300);
+      color: var(--green-300);
+    }
+
+    .wallet-btn.connected:hover {
+      background: var(--bg-surface);
+      box-shadow: 0 0 16px rgba(71, 224, 160, 0.2);
+    }
+
+    .wallet-btn svg {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    /* ── Chatbox ── */
+    .chatbox-spacer { height: 100px; }
+
+    .chatbox {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: var(--bg-elevated);
+      border-top: 1px solid var(--border);
+      backdrop-filter: blur(16px);
+    }
+
+    .chatbox-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 16px 24px;
+    }
+
+    .chatbox-settings {
+      display: none;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(68, 74, 85, 0.5);
+    }
+
+    .chatbox-settings.open { display: grid; }
+
+    .setting-group label {
+      display: block;
+      font-size: 0.6rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+      margin-bottom: 4px;
+    }
+
+    .setting-group input, .setting-group select {
+      width: 100%;
+      padding: 6px 10px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-family: 'Public Sans', sans-serif;
+      font-size: 0.8rem;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+
+    .setting-group input:focus, .setting-group select:focus {
+      border-color: var(--brand-accent);
+      box-shadow: 0 0 0 2px rgba(232, 24, 153, 0.15);
+    }
+
+    .chatbox-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .settings-toggle {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      color: var(--text-tertiary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.2s ease;
+    }
+
+    .settings-toggle:hover {
+      border-color: var(--brand-light);
+      color: var(--text-primary);
+    }
+
+    .settings-toggle.open {
+      border-color: var(--brand-accent);
+      color: var(--brand-accent);
+      background: rgba(232, 24, 153, 0.08);
+    }
+
+    .settings-toggle svg {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .chat-input {
+      flex: 1;
+      padding: 10px 16px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--text-primary);
+      font-family: 'Public Sans', sans-serif;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .chat-input::placeholder { color: var(--text-tertiary); }
+
+    .chat-input:focus {
+      border-color: var(--brand-accent);
+      box-shadow: 0 0 0 3px rgba(232, 24, 153, 0.12);
+    }
+
+    .send-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: var(--brand);
+      border: none;
+      color: var(--grey-0);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.2s ease;
+    }
+
+    .send-btn:hover:not(:disabled) {
+      background: var(--brand-accent);
+      box-shadow: 0 0 16px rgba(232, 24, 153, 0.3);
+    }
+
+    .send-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .send-btn svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .send-btn.sending svg {
+      animation: spin 1s linear infinite;
+    }
+
+    .chatbox-status {
+      font-size: 0.7rem;
+      color: var(--text-tertiary);
+      margin-top: 8px;
+      min-height: 16px;
+    }
+
+    .chatbox-status.error { color: var(--red-300); }
+    .chatbox-status.success { color: var(--green-300); }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      .pipeline { flex-wrap: wrap; gap: 8px; }
+      .phase-connector { width: 32px; }
+      .header-inner { flex-direction: column; align-items: flex-start; }
+      .request-meta-grid { grid-template-columns: 1fr; }
+      .chatbox-settings { grid-template-columns: 1fr 1fr; }
+    }
+
+    /* Fade-in */
+    .fade-in {
+      animation: fadeIn 0.4s ease-out forwards;
+      opacity: 0;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="container header-inner">
+      <div class="logo-group">
+        <div class="logo">NOUS</div>
+        <div class="tagline">The Semantic Middleware Layer for Smart Contracts</div>
+      </div>
+      <div class="header-right">
+        <div class="chain-badge">
+          <span class="chain-dot"></span>
+          <span>Taiko Hoodi</span>
+          <span style="color: var(--text-tertiary);">|</span>
+          <span id="contract-addr" style="font-size: 0.7rem;">0x9a78...4434</span>
+        </div>
+        <button class="wallet-btn" id="wallet-btn" onclick="connectWallet()">
+          <svg viewBox="0 0 24 24"><path d="M21 12V7H5a2 2 0 010-4h14v4"/><path d="M3 5v14a2 2 0 002 2h16v-5"/><circle cx="18" cy="16" r="1"/></svg>
+          <span id="wallet-label">Connect Wallet</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Phase Pipeline -->
+  <section class="pipeline-section">
+    <div class="container">
+      <div class="section-label">Oracle Resolution Pipeline</div>
+      <div class="pipeline" id="pipeline">
+        <div class="phase-node" data-phase="committing">
+          <div class="phase-ring">
+            <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+          </div>
+          <span class="phase-label">Request</span>
+        </div>
+        <div class="phase-connector"></div>
+        <div class="phase-node" data-phase="committing">
+          <div class="phase-ring">
+            <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          </div>
+          <span class="phase-label">Commit</span>
+        </div>
+        <div class="phase-connector"></div>
+        <div class="phase-node" data-phase="revealing">
+          <div class="phase-ring">
+            <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </div>
+          <span class="phase-label">Reveal</span>
+        </div>
+        <div class="phase-connector"></div>
+        <div class="phase-node" data-phase="judging">
+          <div class="phase-ring">
+            <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          </div>
+          <span class="phase-label">Judge</span>
+        </div>
+        <div class="phase-connector"></div>
+        <div class="phase-node" data-phase="distributed">
+          <div class="phase-ring">
+            <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
+          <span class="phase-label">Distribute</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works -->
+  <section class="how-it-works">
+    <div class="container">
+      <div class="section-label">How It Works</div>
+      <div class="steps-grid">
+        <div class="step-card">
+          <div class="step-number">01</div>
+          <div class="step-title">Request</div>
+          <div class="step-desc">A smart contract or user submits a natural language query with a reward bounty.</div>
+        </div>
+        <div class="step-card">
+          <div class="step-number">02</div>
+          <div class="step-title">Commit</div>
+          <div class="step-desc">AI agents stake bonds and submit hashed answers. Commit-reveal prevents frontrunning.</div>
+        </div>
+        <div class="step-card">
+          <div class="step-number">03</div>
+          <div class="step-title">Reveal</div>
+          <div class="step-desc">Agents reveal their answers on-chain. Quorum (&gt;50%) must participate.</div>
+        </div>
+        <div class="step-card">
+          <div class="step-number">04</div>
+          <div class="step-title">Judge</div>
+          <div class="step-desc">A randomly-selected judge agent synthesizes answers and selects winners.</div>
+        </div>
+        <div class="step-card">
+          <div class="step-number">05</div>
+          <div class="step-title">Distribute</div>
+          <div class="step-desc">Winners receive rewards plus losers' slashed bonds.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Agent Council -->
+  <section class="council-section">
+    <div class="container">
+      <div class="section-label" style="padding-top: 40px;">Agent Council</div>
+      <div class="agents-grid" id="agents-grid">
+        <div class="agent-card">
+          <div class="agent-avatar info">I1</div>
+          <div class="agent-meta">
+            <div class="agent-name">Info Agent 1</div>
+            <div class="agent-model">openai/gpt-4.1-mini</div>
+            <span class="agent-role-badge info">Info Agent</span>
+          </div>
+        </div>
+        <div class="agent-card">
+          <div class="agent-avatar info">I2</div>
+          <div class="agent-meta">
+            <div class="agent-name">Info Agent 2</div>
+            <div class="agent-model">google/gemini-2.5-pro</div>
+            <span class="agent-role-badge info">Info Agent</span>
+          </div>
+        </div>
+        <div class="agent-card">
+          <div class="agent-avatar judge">J1</div>
+          <div class="agent-meta">
+            <div class="agent-name">Judge Agent 1</div>
+            <div class="agent-model">anthropic/claude-3.7-sonnet</div>
+            <span class="agent-role-badge judge">Judge Agent</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Live Requests -->
+  <section class="requests-section">
+    <div class="container">
+      <div class="requests-header">
+        <div class="section-label" style="margin-bottom: 0;">Live Requests</div>
+        <div class="refresh-indicator">
+          <div class="refresh-spinner"></div>
+          <span id="refresh-text">Polling...</span>
+        </div>
+      </div>
+      <div id="error-banner" class="error-banner"></div>
+      <div id="request-list" class="request-list">
+        <!-- Shimmer placeholders -->
+        <div class="shimmer" style="height: 180px;"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      Built on <a href="https://eips.ethereum.org/EIPS/eip-8033" target="_blank">ERC-8033</a> &middot;
+      Deployed on <a href="https://hoodi.taikoscan.io/address/0x9a78aD39f2cA73059e7C7963Dd0D49e46f404434" target="_blank">Taiko Hoodi</a> &middot;
+      Contract <span style="font-family: monospace;">0x9a78...4434</span>
+    </div>
+  </footer>
+
+  <!-- Spacer so content isn't hidden behind chatbox -->
+  <div class="chatbox-spacer"></div>
+
+  <!-- Chatbox -->
+  <div class="chatbox">
+    <div class="chatbox-inner">
+      <div class="chatbox-settings" id="chatbox-settings">
+        <div class="setting-group">
+          <label>Agents</label>
+          <input type="number" id="setting-agents" value="2" min="1" max="10">
+        </div>
+        <div class="setting-group">
+          <label>Reward (ETH)</label>
+          <input type="text" id="setting-reward" value="0" placeholder="0.01">
+        </div>
+        <div class="setting-group">
+          <label>Bond (ETH)</label>
+          <input type="text" id="setting-bond" value="0" placeholder="0.001">
+        </div>
+        <div class="setting-group">
+          <label>Deadline (min)</label>
+          <input type="number" id="setting-deadline" value="10" min="1" max="1440">
+        </div>
+        <div class="setting-group">
+          <label>Specifications</label>
+          <input type="text" id="setting-specs" value="" placeholder="Optional context...">
+        </div>
+      </div>
+      <div class="chatbox-row">
+        <button class="settings-toggle" id="settings-toggle" onclick="toggleSettings()" title="Request settings">
+          <svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+        <input class="chat-input" id="chat-input" type="text" placeholder="Ask the oracle anything..." autocomplete="off"
+               onkeydown="if(event.key==='Enter' && !event.shiftKey) sendRequest()">
+        <button class="send-btn" id="send-btn" onclick="sendRequest()" title="Send request">
+          <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </div>
+      <div class="chatbox-status" id="chatbox-status"></div>
+    </div>
+  </div>
+
+  <script>
+    const RPC_URL = 'https://rpc.hoodi.taiko.xyz';
+    const ORACLE_ADDRESS = '0x9a78aD39f2cA73059e7C7963Dd0D49e46f404434';
+    const POLL_INTERVAL = 5000;
+
+    const PHASE_NAMES = ['none', 'committing', 'revealing', 'judging', 'finalized', 'distributed', 'failed'];
+
+    const ORACLE_ABI = [
+      'function nextRequestId() view returns (uint256)',
+      'function phases(uint256) view returns (uint8)',
+      'function getRequest(uint256) view returns (tuple(address requester, uint256 rewardAmount, address rewardToken, uint256 bondAmount, address bondToken, uint256 numInfoAgents, uint256 deadline, string query, string specifications, tuple(string[] capabilities, string[] domains) requiredCapabilities))',
+      'function getCommits(uint256) view returns (address[], bytes32[])',
+      'function getReveals(uint256) view returns (address[], bytes[])',
+      'function getResolution(uint256) view returns (bytes, bool)',
+      'function selectedJudge(uint256) view returns (address)',
+      'function revealDeadlines(uint256) view returns (uint256)',
+      'function getReasoning(uint256) view returns (bytes)',
+      'function getWinners(uint256) view returns (address[])',
+      'function createRequest(string query, uint256 numInfoAgents, uint256 rewardAmount, uint256 bondAmount, uint256 deadline, address rewardToken, address bondToken, string specifications, tuple(string[] capabilities, string[] domains) requiredCapabilities) payable returns (uint256)',
+    ];
+
+    const TAIKO_HOODI_CHAIN = {
+      chainId: '0x28C75',  // 167013
+      chainName: 'Taiko Hoodi',
+      rpcUrls: ['https://rpc.hoodi.taiko.xyz'],
+      nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+      blockExplorerUrls: ['https://hoodi.taikoscan.io'],
+    };
+
+    const provider = new ethers.JsonRpcProvider(RPC_URL);
+    const oracle = new ethers.Contract(ORACLE_ADDRESS, ORACLE_ABI, provider);
+
+    let walletSigner = null;
+    let walletAddress = null;
+
+    // ── Wallet ──
+    async function connectWallet() {
+      const btn = document.getElementById('wallet-btn');
+      const label = document.getElementById('wallet-label');
+
+      if (walletSigner) {
+        // Already connected — disconnect
+        walletSigner = null;
+        walletAddress = null;
+        btn.classList.remove('connected');
+        label.textContent = 'Connect Wallet';
+        return;
+      }
+
+      if (!window.ethereum) {
+        alert('No wallet detected. Please install MetaMask or another web3 wallet.');
+        return;
+      }
+
+      try {
+        label.textContent = 'Connecting\u2026';
+        const browserProvider = new ethers.BrowserProvider(window.ethereum);
+
+        // Request accounts
+        await browserProvider.send('eth_requestAccounts', []);
+
+        // Switch to Taiko Hoodi
+        try {
+          await window.ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: TAIKO_HOODI_CHAIN.chainId }],
+          });
+        } catch (switchErr) {
+          if (switchErr.code === 4902) {
+            await window.ethereum.request({
+              method: 'wallet_addEthereumChain',
+              params: [TAIKO_HOODI_CHAIN],
+            });
+          } else {
+            throw switchErr;
+          }
+        }
+
+        walletSigner = await browserProvider.getSigner();
+        walletAddress = await walletSigner.getAddress();
+        btn.classList.add('connected');
+        label.textContent = shortAddr(walletAddress);
+      } catch (err) {
+        console.error('Wallet connect error:', err);
+        label.textContent = 'Connect Wallet';
+        alert('Failed to connect: ' + (err.message || err));
+      }
+    }
+
+    // Listen for account/chain changes
+    if (window.ethereum) {
+      window.ethereum.on('accountsChanged', () => {
+        walletSigner = null;
+        walletAddress = null;
+        document.getElementById('wallet-btn').classList.remove('connected');
+        document.getElementById('wallet-label').textContent = 'Connect Wallet';
+      });
+      window.ethereum.on('chainChanged', () => location.reload());
+    }
+
+    // ── Chatbox ──
+    function toggleSettings() {
+      const panel = document.getElementById('chatbox-settings');
+      const btn = document.getElementById('settings-toggle');
+      const isOpen = panel.classList.toggle('open');
+      btn.classList.toggle('open', isOpen);
+    }
+
+    async function sendRequest() {
+      const input = document.getElementById('chat-input');
+      const sendBtn = document.getElementById('send-btn');
+      const status = document.getElementById('chatbox-status');
+      const query = input.value.trim();
+
+      if (!query) return;
+
+      if (!walletSigner) {
+        status.textContent = 'Please connect your wallet first.';
+        status.className = 'chatbox-status error';
+        await connectWallet();
+        return;
+      }
+
+      const numAgents = parseInt(document.getElementById('setting-agents').value) || 2;
+      const rewardEth = document.getElementById('setting-reward').value || '0';
+      const bondEth = document.getElementById('setting-bond').value || '0';
+      const deadlineMin = parseInt(document.getElementById('setting-deadline').value) || 10;
+      const specs = document.getElementById('setting-specs').value || '';
+
+      const rewardWei = ethers.parseEther(rewardEth);
+      const bondWei = ethers.parseEther(bondEth);
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + deadlineMin * 60);
+
+      sendBtn.disabled = true;
+      sendBtn.classList.add('sending');
+      status.textContent = 'Sending transaction\u2026';
+      status.className = 'chatbox-status';
+
+      try {
+        const oracleWithSigner = new ethers.Contract(ORACLE_ADDRESS, ORACLE_ABI, walletSigner);
+
+        const tx = await oracleWithSigner.createRequest(
+          query,
+          numAgents,
+          rewardWei,
+          bondWei,
+          deadline,
+          ethers.ZeroAddress, // rewardToken (native ETH)
+          ethers.ZeroAddress, // bondToken (native ETH)
+          specs,
+          { capabilities: [], domains: [] },
+          { value: rewardWei },
+        );
+
+        status.textContent = `Tx sent: ${shortAddr(tx.hash)} \u2014 waiting for confirmation\u2026`;
+
+        const receipt = await tx.wait();
+        status.textContent = `Request created! Tx confirmed in block ${receipt.blockNumber}.`;
+        status.className = 'chatbox-status success';
+        input.value = '';
+
+        // Trigger an immediate poll to show the new request
+        setTimeout(poll, 1000);
+      } catch (err) {
+        console.error('Send error:', err);
+        const reason = err.reason || err.shortMessage || err.message || 'Transaction failed';
+        status.textContent = reason;
+        status.className = 'chatbox-status error';
+      } finally {
+        sendBtn.disabled = false;
+        sendBtn.classList.remove('sending');
+      }
+    }
+
+    function shortAddr(addr) {
+      if (!addr || addr === ethers.ZeroAddress) return '\u2014';
+      return addr.slice(0, 6) + '\u2026' + addr.slice(-4);
+    }
+
+    function formatEth(wei) {
+      const val = parseFloat(ethers.formatEther(wei));
+      if (val === 0) return '0 ETH';
+      if (val < 0.0001) return '< 0.0001 ETH';
+      return val.toFixed(4) + ' ETH';
+    }
+
+    function timeRemaining(deadline) {
+      const now = Math.floor(Date.now() / 1000);
+      const remaining = Number(deadline) - now;
+      if (remaining <= 0) return 'Expired';
+      const h = Math.floor(remaining / 3600);
+      const m = Math.floor((remaining % 3600) / 60);
+      const s = remaining % 60;
+      if (h > 0) return `${h}h ${m}m`;
+      if (m > 0) return `${m}m ${s}s`;
+      return `${s}s`;
+    }
+
+    function tryDecodeHex(hex) {
+      if (!hex || hex === '0x') return null;
+      try {
+        const text = ethers.toUtf8String(hex);
+        try {
+          return JSON.parse(text);
+        } catch {
+          return { text };
+        }
+      } catch {
+        return null;
+      }
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    async function fetchAllRequests() {
+      const nextId = await oracle.nextRequestId();
+      const requests = [];
+
+      for (let id = 1n; id < nextId; id++) {
+        const [phaseIndex, req, commits, reveals, resolution, judge, revealDeadline] = await Promise.all([
+          oracle.phases(id),
+          oracle.getRequest(id),
+          oracle.getCommits(id),
+          oracle.getReveals(id),
+          oracle.getResolution(id),
+          oracle.selectedJudge(id),
+          oracle.revealDeadlines(id),
+        ]);
+
+        let reasoning = null;
+        let winners = [];
+        const phase = PHASE_NAMES[Number(phaseIndex)] || 'none';
+        if (phase === 'finalized' || phase === 'distributed') {
+          try {
+            [reasoning, winners] = await Promise.all([
+              oracle.getReasoning(id),
+              oracle.getWinners(id),
+            ]);
+          } catch {}
+        }
+
+        requests.push({
+          id,
+          phase,
+          request: req,
+          committedAgents: commits[0],
+          commitHashes: commits[1],
+          revealedAgents: reveals[0],
+          revealedAnswers: reveals[1],
+          finalAnswer: resolution[0],
+          finalized: resolution[1],
+          selectedJudge: judge,
+          revealDeadline,
+          reasoning,
+          winners,
+        });
+      }
+
+      return requests;
+    }
+
+    function renderPipeline(requests) {
+      // Find the "most advanced" active phase across all requests
+      let highestPhase = 'none';
+      const phaseOrder = { none: 0, committing: 1, revealing: 2, judging: 3, finalized: 4, distributed: 5 };
+
+      for (const r of requests) {
+        if (r.phase !== 'failed' && (phaseOrder[r.phase] || 0) > (phaseOrder[highestPhase] || 0)) {
+          highestPhase = r.phase;
+        }
+      }
+
+      const pipelinePhases = ['committing', 'committing', 'revealing', 'judging', 'distributed'];
+      const nodes = document.querySelectorAll('.phase-node');
+      const connectors = document.querySelectorAll('.phase-connector');
+
+      const currentIndex = {
+        none: -1, committing: 1, revealing: 2, judging: 3, finalized: 4, distributed: 4
+      }[highestPhase] ?? -1;
+
+      nodes.forEach((node, i) => {
+        node.classList.remove('active', 'completed', 'failed');
+        if (i < currentIndex) node.classList.add('completed');
+        else if (i === currentIndex) node.classList.add('active');
+      });
+
+      connectors.forEach((conn, i) => {
+        conn.classList.remove('active', 'completed');
+        if (i < currentIndex - 1) conn.classList.add('completed');
+        else if (i === currentIndex - 1) conn.classList.add('active');
+      });
+    }
+
+    function renderRequests(requests) {
+      const container = document.getElementById('request-list');
+
+      if (requests.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state fade-in">
+            <div class="empty-icon">
+              <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+            </div>
+            <div class="empty-title">Awaiting Requests</div>
+            <div class="empty-desc">
+              No oracle requests have been created yet.
+              Submit a query via <code style="color: var(--pink-200);">createRequest()</code> to see agents deliberate.
+            </div>
+          </div>`;
+        return;
+      }
+
+      // Show newest first
+      const sorted = [...requests].reverse();
+
+      container.innerHTML = sorted.map((r, idx) => {
+        const req = r.request;
+        const numAgents = Number(req.numInfoAgents);
+        const committed = r.committedAgents.length;
+        const revealed = r.revealedAgents.length;
+        const commitPct = numAgents > 0 ? (committed / numAgents) * 100 : 0;
+        const revealPct = committed > 0 ? (revealed / committed) * 100 : 0;
+        const isNativeReward = req.rewardToken === ethers.ZeroAddress;
+        const isNativeBond = req.bondToken === ethers.ZeroAddress;
+
+        let answersHtml = '';
+        if (r.revealedAgents.length > 0) {
+          const answerCards = r.revealedAgents.map((agent, i) => {
+            const decoded = tryDecodeHex(r.revealedAnswers[i]);
+            let answerText = 'Unable to decode';
+            let confidence = null;
+            if (decoded) {
+              if (decoded.answer) {
+                answerText = decoded.answer;
+                confidence = decoded.confidence;
+              } else if (decoded.text) {
+                answerText = decoded.text;
+              }
+            }
+            return `
+              <div class="reveal-card">
+                <div class="reveal-agent">${shortAddr(agent)}</div>
+                <div class="reveal-answer">${escapeHtml(answerText)}</div>
+                ${confidence !== null ? `<span class="reveal-confidence">${(confidence * 100).toFixed(0)}% confidence</span>` : ''}
+              </div>`;
+          }).join('');
+
+          answersHtml = `
+            <div class="reveals-section">
+              <div class="meta-label">Revealed Answers</div>
+              ${answerCards}
+            </div>`;
+        }
+
+        let finalHtml = '';
+        if (r.finalized && r.finalAnswer && r.finalAnswer !== '0x') {
+          const decoded = tryDecodeHex(r.finalAnswer);
+          const text = decoded?.text || decoded?.answer || decoded || 'Unable to decode';
+          const reasoningDecoded = r.reasoning ? tryDecodeHex(r.reasoning) : null;
+          const reasoningText = reasoningDecoded?.text || (typeof reasoningDecoded === 'string' ? reasoningDecoded : null);
+
+          finalHtml = `
+            <div class="final-answer-section">
+              <div class="final-answer-label">Final Answer</div>
+              <div class="final-answer-text">${escapeHtml(typeof text === 'string' ? text : JSON.stringify(text))}</div>
+              ${reasoningText ? `<div style="margin-top: 10px; font-size: 0.75rem; color: var(--text-tertiary); line-height: 1.5;"><strong>Reasoning:</strong> ${escapeHtml(reasoningText)}</div>` : ''}
+              ${r.winners && r.winners.length > 0 ? `<div style="margin-top: 8px; font-size: 0.7rem; color: var(--green-300);">Winners: ${r.winners.map(shortAddr).join(', ')}</div>` : ''}
+            </div>`;
+        }
+
+        return `
+          <div class="request-card fade-in" style="animation-delay: ${idx * 60}ms;">
+            <div class="request-card-header">
+              <span class="request-id">Request #${r.id.toString()}</span>
+              <span class="phase-badge ${r.phase}">
+                <span class="phase-dot"></span>
+                ${r.phase}
+              </span>
+            </div>
+            <div class="request-card-body">
+              <div class="request-query">${escapeHtml(req.query)}</div>
+
+              <div class="request-meta-grid">
+                <div class="meta-item">
+                  <div class="meta-label">Reward</div>
+                  <div class="meta-value">${isNativeReward ? formatEth(req.rewardAmount) : req.rewardAmount.toString() + ' tokens'}</div>
+                </div>
+                <div class="meta-item">
+                  <div class="meta-label">Bond</div>
+                  <div class="meta-value">${isNativeBond ? formatEth(req.bondAmount) : req.bondAmount.toString() + ' tokens'}</div>
+                </div>
+                <div class="meta-item">
+                  <div class="meta-label">Commit Deadline</div>
+                  <div class="meta-value">${timeRemaining(req.deadline)}</div>
+                </div>
+                ${r.revealDeadline > 0n ? `
+                <div class="meta-item">
+                  <div class="meta-label">Reveal Deadline</div>
+                  <div class="meta-value">${timeRemaining(r.revealDeadline)}</div>
+                </div>` : ''}
+                <div class="meta-item">
+                  <div class="meta-label">Requester</div>
+                  <div class="meta-value mono">${shortAddr(req.requester)}</div>
+                </div>
+                ${r.selectedJudge && r.selectedJudge !== ethers.ZeroAddress ? `
+                <div class="meta-item">
+                  <div class="meta-label">Judge</div>
+                  <div class="meta-value mono">${shortAddr(r.selectedJudge)}</div>
+                </div>` : ''}
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                <div class="participation-bar">
+                  <span class="bar-label" style="width: 70px;">Committed</span>
+                  <div class="bar-track">
+                    <div class="bar-fill pink" style="width: ${commitPct}%;"></div>
+                  </div>
+                  <span class="bar-label">${committed}/${numAgents}</span>
+                </div>
+                <div class="participation-bar">
+                  <span class="bar-label" style="width: 70px;">Revealed</span>
+                  <div class="bar-track">
+                    <div class="bar-fill blue" style="width: ${revealPct}%;"></div>
+                  </div>
+                  <span class="bar-label">${revealed}/${committed}</span>
+                </div>
+              </div>
+
+              ${answersHtml}
+              ${finalHtml}
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    async function poll() {
+      const refreshText = document.getElementById('refresh-text');
+      const errorBanner = document.getElementById('error-banner');
+
+      try {
+        refreshText.textContent = 'Fetching\u2026';
+        const requests = await fetchAllRequests();
+        errorBanner.style.display = 'none';
+        renderPipeline(requests);
+        renderRequests(requests);
+        refreshText.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+      } catch (err) {
+        console.error('Poll error:', err);
+        errorBanner.textContent = `RPC error: ${err.message}`;
+        errorBanner.style.display = 'block';
+        refreshText.textContent = 'Error';
+      }
+    }
+
+    // Initial load
+    poll();
+    setInterval(poll, POLL_INTERVAL);
+  </script>
+</body>
+</html>
