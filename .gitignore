@@ -14,6 +14,8 @@ cache/
 # Optional
 .env
 .env.local
+agents.json
+state/
 
 # Foundry
 out/

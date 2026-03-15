@@ -1,0 +1,16 @@
+services:
+  agents:
+    build:
+      context: ./client
+    environment:
+      AGENTS_FILE: /app/agents.json
+      STATE_DIR: /app/state
+      RPC_URL: ${RPC_URL}
+      ORACLE_ADDRESS: ${ORACLE_ADDRESS}
+      CHAIN_ID: ${CHAIN_ID}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      POLL_INTERVAL_MS: ${POLL_INTERVAL_MS:-5000}
+    volumes:
+      - ./agents.json:/app/agents.json:ro
+      - ./state:/app/state
+    restart: unless-stopped

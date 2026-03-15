@@ -1,0 +1,6 @@
+node_modules
+dist
+agents.json
+agents.env
+state
+npm-debug.log

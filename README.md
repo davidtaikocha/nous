@@ -49,6 +49,8 @@ forge build
 ### Agent Client
 
 The onchain protocol now has a matching Node client in [client/README.md](/Users/davidcai/taiko/hackathon/nous/client/README.md) for running `infoAgents` and `judgeAgents` with local private keys.
+It also includes a manifest-driven Docker Compose workflow for running multiple local agents with per-agent OpenRouter model selection.
+The local agent manifest example now lives at [agents.example.json](/Users/davidcai/taiko/hackathon/nous/agents.example.json), and the shared runtime env example is [.env.example](/Users/davidcai/taiko/hackathon/nous/.env.example).
 
 ### Test
 

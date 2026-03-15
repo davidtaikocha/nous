@@ -6,11 +6,13 @@
   "description": "Node client for running Nous info agents and judge agents onchain",
   "bin": {
     "nous-worker": "./dist/cli.js",
+    "nous-launcher": "./dist/launcher.js",
     "nous-run-info": "./dist/cli.js",
     "nous-run-judge": "./dist/cli.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "start:launcher": "node dist/launcher.js",
     "start": "node dist/cli.js worker",
     "test": "vitest run",
     "test:watch": "vitest"

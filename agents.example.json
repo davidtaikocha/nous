@@ -1,0 +1,22 @@
+{
+  "agents": [
+    {
+      "id": "info-1",
+      "role": "info",
+      "model": "openai/gpt-4.1-mini",
+      "privateKey": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "id": "info-2",
+      "role": "info",
+      "model": "google/gemini-2.5-pro",
+      "privateKey": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    {
+      "id": "judge-1",
+      "role": "judge",
+      "model": "anthropic/claude-3.7-sonnet",
+      "privateKey": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    }
+  ]
+}
