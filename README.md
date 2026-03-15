@@ -46,6 +46,10 @@ dApp → createRequest("Did company X announce bankruptcy?")
 forge build
 ```
 
+### Agent Client
+
+The onchain protocol now has a matching Node client in [client/README.md](/Users/davidcai/taiko/hackathon/nous/client/README.md) for running `infoAgents` and `judgeAgents` with local private keys.
+
 ### Test
 
 ```shell

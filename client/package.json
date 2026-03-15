@@ -1,0 +1,31 @@
+{
+  "name": "nous-agent-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Node client for running Nous info agents and judge agents onchain",
+  "bin": {
+    "nous-worker": "./dist/cli.js",
+    "nous-run-info": "./dist/cli.js",
+    "nous-run-judge": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/cli.js worker",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@openrouter/sdk": "^0.9.11",
+    "viem": "^2.37.5",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

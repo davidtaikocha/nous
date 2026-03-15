@@ -1,0 +1,138 @@
+export const oracleAbi = [
+  {
+    type: 'function',
+    name: 'nextRequestId',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'phases',
+    stateMutability: 'view',
+    inputs: [{ name: 'requestId', type: 'uint256' }],
+    outputs: [{ name: '', type: 'uint8' }],
+  },
+  {
+    type: 'function',
+    name: 'selectedJudge',
+    stateMutability: 'view',
+    inputs: [{ name: 'requestId', type: 'uint256' }],
+    outputs: [{ name: '', type: 'address' }],
+  },
+  {
+    type: 'function',
+    name: 'revealDeadlines',
+    stateMutability: 'view',
+    inputs: [{ name: 'requestId', type: 'uint256' }],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'getRequest',
+    stateMutability: 'view',
+    inputs: [{ name: 'requestId', type: 'uint256' }],
+    outputs: [
+      {
+        name: '',
+        type: 'tuple',
+        components: [
+          { name: 'requester', type: 'address' },
+          { name: 'rewardAmount', type: 'uint256' },
+          { name: 'rewardToken', type: 'address' },
+          { name: 'bondAmount', type: 'uint256' },
+          { name: 'bondToken', type: 'address' },
+          { name: 'numInfoAgents', type: 'uint256' },
+          { name: 'deadline', type: 'uint256' },
+          { name: 'query', type: 'string' },
+          { name: 'specifications', type: 'string' },
+          {
+            name: 'requiredCapabilities',
+            type: 'tuple',
+            components: [
+              { name: 'capabilities', type: 'string[]' },
+              { name: 'domains', type: 'string[]' },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    type: 'function',
+    name: 'getCommits',
+    stateMutability: 'view',
+    inputs: [{ name: 'requestId', type: 'uint256' }],
+    outputs: [
+      { name: 'agents', type: 'address[]' },
+      { name: 'commitments', type: 'bytes32[]' },
+    ],
+  },
+  {
+    type: 'function',
+    name: 'getReveals',
+    stateMutability: 'view',
+    inputs: [{ name: 'requestId', type: 'uint256' }],
+    outputs: [
+      { name: 'agents', type: 'address[]' },
+      { name: 'answers', type: 'bytes[]' },
+    ],
+  },
+  {
+    type: 'function',
+    name: 'getResolution',
+    stateMutability: 'view',
+    inputs: [{ name: 'requestId', type: 'uint256' }],
+    outputs: [
+      { name: 'finalAnswer', type: 'bytes' },
+      { name: 'finalized', type: 'bool' },
+    ],
+  },
+  {
+    type: 'function',
+    name: 'commit',
+    stateMutability: 'payable',
+    inputs: [
+      { name: 'requestId', type: 'uint256' },
+      { name: 'commitment', type: 'bytes32' },
+    ],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'reveal',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'requestId', type: 'uint256' },
+      { name: 'answer', type: 'bytes' },
+      { name: 'nonce', type: 'uint256' },
+    ],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'aggregate',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'requestId', type: 'uint256' },
+      { name: 'finalAnswer', type: 'bytes' },
+      { name: 'winners', type: 'address[]' },
+      { name: 'reasoning', type: 'bytes' },
+    ],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'endCommitPhase',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'requestId', type: 'uint256' }],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'endRevealPhase',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'requestId', type: 'uint256' }],
+    outputs: [],
+  },
+] as const;
