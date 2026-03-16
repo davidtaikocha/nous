@@ -1874,7 +1874,7 @@
     function agentDisplayName(addr) {
       if (!addr || addr === ethers.ZeroAddress) return '\u2014';
       const agent = AGENTS.find(a => a.address.toLowerCase() === addr.toLowerCase());
-      if (agent) return agent.name;
+      if (agent) return `Agent: ${agent.name}`;
       return shortAddr(addr);
     }
 
