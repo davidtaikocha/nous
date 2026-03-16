@@ -12,6 +12,7 @@ describe('loadConfig', () => {
       JUDGE_AGENT_PRIVATE_KEYS: `0x${'33'.repeat(32)}`,
       MODEL_ID: 'openai/gpt-4.1-mini',
       OPENROUTER_API_KEY: 'test-key',
+      PINATA_JWT: 'test-pinata-jwt',
     });
 
     expect(config.infoAgentPrivateKeys).toHaveLength(2);

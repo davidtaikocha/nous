@@ -17,6 +17,8 @@ const envSchema = z.object({
   STATE_FILE: z.string().min(1).default('.nous-agent-state.json'),
   INFO_AGENT_PRIVATE_KEYS: z.string().default(''),
   JUDGE_AGENT_PRIVATE_KEYS: z.string().default(''),
+  PINATA_JWT: z.string().min(1),
+  IPFS_GATEWAY_URL: z.string().url().default('https://magenta-tremendous-cockroach-62.mypinata.cloud'),
 });
 
 export interface NousClientConfig {
@@ -29,6 +31,8 @@ export interface NousClientConfig {
   stateFile: string;
   infoAgentPrivateKeys: Hex[];
   judgeAgentPrivateKeys: Hex[];
+  pinataJwt: string;
+  ipfsGatewayUrl: string;
 }
 
 function parsePrivateKeyList(value: string): Hex[] {
@@ -56,5 +60,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined>): NousClie
     stateFile: resolve(env.STATE_FILE),
     infoAgentPrivateKeys: parsePrivateKeyList(env.INFO_AGENT_PRIVATE_KEYS),
     judgeAgentPrivateKeys: parsePrivateKeyList(env.JUDGE_AGENT_PRIVATE_KEYS),
+    pinataJwt: env.PINATA_JWT,
+    ipfsGatewayUrl: env.IPFS_GATEWAY_URL,
   };
 }
