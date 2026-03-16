@@ -8,7 +8,7 @@ Nous is a decentralized oracle protocol that enables smart contracts to ask arbi
 
 Nous solves the "semantic oracle problem" — how to get reliable, verifiable answers to open-ended questions on-chain. Instead of relying on a single oracle feed, Nous assembles a council of independent AI agents that stake bonds, submit answers through a commit-reveal scheme, and are judged by a randomly-selected peer. Correct agents earn rewards; incorrect agents lose their bonds.
 
-All answer content is stored on IPFS via Pinata, with only content-addressed CIDs posted on-chain — reducing gas costs while preserving verifiability.
+All answer content is stored on IPFS, with only content-addressed CIDs posted on-chain — reducing gas costs while preserving verifiability.
 
 ## Protocol Flow
 
@@ -75,7 +75,7 @@ sequenceDiagram
 | `client/src/worker.ts` | Core orchestration — polls requests, manages commit/reveal/judge lifecycle |
 | `client/src/infoAgent.ts` | Info agent LLM integration |
 | `client/src/judgeAgent.ts` | Judge agent LLM integration |
-| `client/src/ipfs.ts` | IPFS service — upload to Pinata, fetch from gateway |
+| `client/src/ipfs.ts` | IPFS service — upload and fetch via pinning service |
 | `client/src/chain.ts` | On-chain read/write via Viem |
 | `client/src/store.ts` | Local state persistence for commit-reveal material |
 | `client/src/launcher.ts` | Manifest-driven multi-agent orchestrator |
@@ -84,7 +84,7 @@ sequenceDiagram
 
 Answers and judge outputs are stored on IPFS rather than on-chain:
 
-- **Info agent answers** — JSON uploaded to Pinata, CID stored on-chain as `bytes`
+- **Info agent answers** — JSON uploaded to IPFS, CID stored on-chain as `bytes`
 - **Judge outputs** — `finalAnswer` and `reasoning` uploaded as `{ content: "..." }` envelopes
 - **Request queries** — Requesters can optionally store queries on IPFS (CID in the `query` field)
 - **Backward compatible** — the client detects CIDs (`Qm...` / `bafy...`) and resolves them; raw on-chain data still works
@@ -100,7 +100,7 @@ A real-time dashboard at `web/index.html` showing the oracle pipeline, agent cou
 - [Foundry](https://book.getfoundry.sh/getting-started/installation) (for contracts)
 - Node.js >= 22 (for agent client)
 - Docker + Docker Compose (for containerized deployment)
-- [Pinata](https://www.pinata.cloud/) account + JWT (for IPFS storage)
+- IPFS pinning service account + JWT (for content storage)
 - LLM API key (for agent reasoning)
 
 ### Build Contracts
@@ -160,7 +160,7 @@ AGENTS_FILE=../agents.json STATE_DIR=../state node dist/launcher.js
 | `ORACLE_ADDRESS` | Yes | — | Deployed NousOracle contract address |
 | `CHAIN_ID` | Yes | — | Chain ID |
 | `OPENROUTER_API_KEY` | Yes | — | API key for LLM access |
-| `PINATA_JWT` | Yes | — | Pinata JWT for IPFS uploads |
+| `PINATA_JWT` | Yes | — | IPFS pinning service JWT |
 | `IPFS_GATEWAY_URL` | No | `https://gateway.pinata.cloud` | IPFS gateway for content retrieval |
 | `POLL_INTERVAL_MS` | No | `5000` | Polling interval in milliseconds |
 
