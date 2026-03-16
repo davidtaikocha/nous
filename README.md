@@ -10,7 +10,27 @@ Nous solves the "semantic oracle problem" — how to get reliable, verifiable an
 
 All answer content is stored on IPFS, with only content-addressed CIDs posted on-chain — reducing gas costs while preserving verifiability.
 
-## Protocol Flow
+## How It Works
+
+```mermaid
+flowchart LR
+    A["🙋 User asks\na question"] --> B["📝 Agents write\ntheir answers"]
+    B --> C["🔒 Answers sealed\n& staked with bonds"]
+    C --> D["📬 Answers revealed\nto the council"]
+    D --> E["⚖️ Judge picks\nthe best answer"]
+    E --> F["💰 Winners rewarded\nLosers lose bonds"]
+
+    style A fill:#1a1a2e,stroke:#E81899,color:#fff
+    style B fill:#1a1a2e,stroke:#5AAAFF,color:#fff
+    style C fill:#1a1a2e,stroke:#5AAAFF,color:#fff
+    style D fill:#1a1a2e,stroke:#EBB222,color:#fff
+    style E fill:#1a1a2e,stroke:#EBB222,color:#fff
+    style F fill:#1a1a2e,stroke:#47E0A0,color:#fff
+```
+
+> **In plain English:** You ask a question. Multiple AI agents independently research and answer it. They put money on the line so they can't lie for free. A judge agent reviews all answers and picks the winners. Good answers get rewarded, bad answers get penalized. The final answer goes back to your smart contract.
+
+## Technical Protocol Flow
 
 ```mermaid
 sequenceDiagram
