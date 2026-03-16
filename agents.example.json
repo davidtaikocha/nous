@@ -4,12 +4,14 @@
       "id": "info-1",
       "role": "info",
       "model": "openai/gpt-4.1-mini",
+      "specialty": "general",
       "privateKey": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     },
     {
       "id": "info-2",
       "role": "info",
       "model": "google/gemini-2.5-pro",
+      "specialty": "sports",
       "privateKey": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
     },
     {

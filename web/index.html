@@ -1527,6 +1527,12 @@
             <option value="onchain">On-chain</option>
           </select>
         </div>
+        <div class="setting-group">
+          <label>Domain</label>
+          <select id="setting-domain">
+            <option value="" selected>Any</option>
+          </select>
+        </div>
       </div>
       <div class="chatbox-row">
         <button class="settings-toggle" id="settings-toggle" onclick="toggleSettings()" title="Request settings">
@@ -1585,11 +1591,24 @@
             name: a.id.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
             role: a.role,
             model: a.model,
+            specialty: a.specialty || 'general',
             address: wallet.address,
           };
         });
       } catch (err) {
         console.warn('Could not load agents.json, using empty list:', err.message);
+      }
+
+      // Populate domain dropdown from agent specialties
+      const domainSelect = document.getElementById('setting-domain');
+      if (domainSelect) {
+        const specialties = [...new Set(AGENTS.filter(a => a.role === 'info' && a.specialty && a.specialty !== 'general').map(a => a.specialty))];
+        for (const s of specialties) {
+          const opt = document.createElement('option');
+          opt.value = s;
+          opt.textContent = s.charAt(0).toUpperCase() + s.slice(1);
+          domainSelect.appendChild(opt);
+        }
       }
     }
 
@@ -1770,6 +1789,7 @@
       const bondVal = document.getElementById('setting-bond').value || '0';
       const deadlineMin = parseInt(document.getElementById('setting-deadline').value) || 10;
       const specs = document.getElementById('setting-specs').value || '';
+      const domain = document.getElementById('setting-domain').value || '';
       const tokenAddress = getSelectedToken();
 
       if (tokenAddress === 'custom' || (tokenAddress && tokenAddress !== ethers.ZeroAddress && !ethers.isAddress(tokenAddress))) {
@@ -1842,7 +1862,7 @@
           rewardToken,
           bondToken,
           onChainSpecs,
-          { capabilities: [], domains: [] },
+          { capabilities: [], domains: domain ? [domain] : [] },
           { value: msgValue },
         );
 
@@ -2371,6 +2391,7 @@
               <div class="agent-model">${agent.model}</div>
               <div class="agent-address">${shortAddr(agent.address)}</div>
               <span class="agent-role-badge ${agent.role}">${agent.role === 'judge' ? 'Judge Agent' : 'Info Agent'}</span>
+              ${agent.specialty && agent.specialty !== 'general' ? `<span class="agent-role-badge info" style="margin-left:4px;">${agent.specialty}</span>` : ''}
               ${balancesHtml}
             </div>
           </div>`;

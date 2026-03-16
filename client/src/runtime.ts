@@ -17,7 +17,7 @@ import { createIpfsService } from './ipfs.js';
 import { createFileStateStore } from './store.js';
 import { createWorker, type InfoAgentRuntime, type JudgeAgentRuntime } from './worker.js';
 
-export function buildRuntime({ config, agentModels }: { config: NousClientConfig; agentModels?: Map<string, string> }) {
+export function buildRuntime({ config, agentModels, agentSpecialties }: { config: NousClientConfig; agentModels?: Map<string, string>; agentSpecialties?: Map<string, string> }) {
   const chain = defineChain({
     id: config.chainId,
     name: `chain-${config.chainId}`,
@@ -68,9 +68,14 @@ export function buildRuntime({ config, agentModels }: { config: NousClientConfig
     return agentModels?.get(privateKey) ?? config.modelId;
   }
 
+  function getSpecialtyForKey(privateKey: Hex): string {
+    return agentSpecialties?.get(privateKey) ?? 'general';
+  }
+
   const infoAgents: InfoAgentRuntime[] = config.infoAgentPrivateKeys.map((privateKey) => {
     const address = getAddress(privateKeyToAccount(privateKey).address);
     const model = getModelForKey(privateKey);
+    const specialty = getSpecialtyForKey(privateKey);
     return {
       address,
       async generate(request) {
@@ -78,7 +83,7 @@ export function buildRuntime({ config, agentModels }: { config: NousClientConfig
           throw new Error('OPENROUTER_API_KEY is required to generate info-agent answers');
         }
 
-        return generateInfoAgentResult({ openRouter, model, request });
+        return generateInfoAgentResult({ openRouter, model, request, specialty });
       },
     };
   });

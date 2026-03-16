@@ -22,6 +22,7 @@ const agentManifestSchema = z.object({
       role: agentRoleSchema,
       model: z.string().min(1),
       privateKey: privateKeySchema,
+      specialty: z.string().min(1).default('general'),
     }),
   ),
 });
@@ -46,10 +47,11 @@ export function buildMergedConfig({
   manifest: AgentManifest;
   baseConfig: NousClientConfig;
   stateDir: string;
-}): { config: NousClientConfig; agentModels: Map<string, string> } {
+}): { config: NousClientConfig; agentModels: Map<string, string>; agentSpecialties: Map<string, string> } {
   const infoKeys: Hex[] = [];
   const judgeKeys: Hex[] = [];
   const agentModels = new Map<string, string>();
+  const agentSpecialties = new Map<string, string>();
 
   for (const agent of manifest.agents) {
     const privateKey = agent.privateKey as Hex;
@@ -59,6 +61,7 @@ export function buildMergedConfig({
       judgeKeys.push(privateKey);
     }
     agentModels.set(privateKey, agent.model);
+    agentSpecialties.set(privateKey, agent.specialty);
   }
 
   return {
@@ -69,6 +72,7 @@ export function buildMergedConfig({
       judgeAgentPrivateKeys: judgeKeys,
     },
     agentModels,
+    agentSpecialties,
   };
 }
 
@@ -110,14 +114,14 @@ export async function runLauncher({
   const agentsFile = resolve(env.AGENTS_FILE ?? 'agents.json');
   const stateDir = resolve(env.STATE_DIR ?? 'state');
   const manifest = await loadAgentManifest(agentsFile);
-  const { config, agentModels } = buildMergedConfig({ manifest, baseConfig, stateDir });
+  const { config, agentModels, agentSpecialties } = buildMergedConfig({ manifest, baseConfig, stateDir });
 
   console.log(`[launcher] Starting single worker with ${manifest.agents.length} agents:`);
   for (const agent of manifest.agents) {
-    console.log(`[launcher]   ${agent.id} (${agent.role}) — model: ${agent.model}`);
+    console.log(`[launcher]   ${agent.id} (${agent.role}, ${agent.specialty}) — model: ${agent.model}`);
   }
 
-  const client = createNousClient(config, agentModels);
+  const client = createNousClient(config, agentModels, agentSpecialties);
   try {
     await client.runWorker(signal);
   } catch (error) {

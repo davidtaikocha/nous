@@ -27,13 +27,17 @@ export function parseInfoAgentResult(input: unknown): InfoAgentResult {
   return infoAgentResultSchema.parse(input);
 }
 
-export function buildInfoAgentPrompt(request: OracleRequest): string {
+export function buildInfoAgentPrompt(request: OracleRequest, specialty?: string): string {
   const capabilities = request.requiredCapabilities.capabilities.join(', ') || 'none';
   const domains = request.requiredCapabilities.domains.join(', ') || 'none';
   const specifications = request.specifications || 'No additional specifications provided.';
+  const specialtyLine = specialty && specialty !== 'general'
+    ? `Your specialty is "${specialty}". Leverage your domain expertise when relevant.`
+    : '';
 
   return [
     'You are an info agent participating in an oracle council.',
+    specialtyLine,
     'Your job is to provide the best possible answer to the question using your knowledge.',
     `Question: ${request.query}`,
     `Specifications: ${specifications}`,
@@ -101,10 +105,12 @@ export async function generateInfoAgentResult({
   openRouter,
   model,
   request,
+  specialty,
 }: {
   openRouter: OpenRouter;
   model: string;
   request: OracleRequest;
+  specialty?: string;
 }): Promise<InfoAgentResult> {
   const response = await openRouter.chat.send({
     chatGenerationParams: {
@@ -123,7 +129,7 @@ export async function generateInfoAgentResult({
         },
         {
           role: 'user',
-          content: buildInfoAgentPrompt(request),
+          content: buildInfoAgentPrompt(request, specialty),
         },
       ],
     } as any,

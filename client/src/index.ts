@@ -1,11 +1,11 @@
 import type { NousClientConfig } from './config.js';
 import { buildRuntime } from './runtime.js';
 
-export function createNousClient(config: NousClientConfig, agentModels?: Map<string, string>) {
+export function createNousClient(config: NousClientConfig, agentModels?: Map<string, string>, agentSpecialties?: Map<string, string>) {
   let runtime: ReturnType<typeof buildRuntime> | undefined;
 
   function getRuntime() {
-    runtime ??= buildRuntime({ config, agentModels });
+    runtime ??= buildRuntime({ config, agentModels, agentSpecialties });
     return runtime;
   }
 
