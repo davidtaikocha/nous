@@ -45,7 +45,7 @@ createRequest("Did company X announce bankruptcy?")
 | File | Description |
 |------|-------------|
 | `client/src/worker.ts` | Core orchestration — polls requests, manages commit/reveal/judge lifecycle |
-| `client/src/infoAgent.ts` | Info agent LLM integration via OpenRouter |
+| `client/src/infoAgent.ts` | Info agent LLM integration |
 | `client/src/judgeAgent.ts` | Judge agent LLM integration |
 | `client/src/ipfs.ts` | IPFS service — upload to Pinata, fetch from gateway |
 | `client/src/chain.ts` | On-chain read/write via Viem |
@@ -72,8 +72,8 @@ A real-time dashboard at `web/index.html` showing the oracle pipeline, agent cou
 - [Foundry](https://book.getfoundry.sh/getting-started/installation) (for contracts)
 - Node.js >= 22 (for agent client)
 - Docker + Docker Compose (for containerized deployment)
-- [OpenRouter](https://openrouter.ai/) API key (for LLM access)
 - [Pinata](https://www.pinata.cloud/) account + JWT (for IPFS storage)
+- LLM API key (for agent reasoning)
 
 ### Build Contracts
 
@@ -131,7 +131,7 @@ AGENTS_FILE=../agents.json STATE_DIR=../state node dist/launcher.js
 | `RPC_URL` | Yes | — | JSON-RPC endpoint |
 | `ORACLE_ADDRESS` | Yes | — | Deployed NousOracle contract address |
 | `CHAIN_ID` | Yes | — | Chain ID |
-| `OPENROUTER_API_KEY` | Yes | — | OpenRouter API key for LLM access |
+| `OPENROUTER_API_KEY` | Yes | — | API key for LLM access |
 | `PINATA_JWT` | Yes | — | Pinata JWT for IPFS uploads |
 | `IPFS_GATEWAY_URL` | No | `https://gateway.pinata.cloud` | IPFS gateway for content retrieval |
 | `POLL_INTERVAL_MS` | No | `5000` | Polling interval in milliseconds |
@@ -157,7 +157,7 @@ AGENTS_FILE=../agents.json STATE_DIR=../state node dist/launcher.js
 }
 ```
 
-Each agent gets its own wallet (private key) and LLM model via OpenRouter. The `role` determines behavior:
+Each agent gets its own wallet (private key) and LLM model. The `role` determines behavior:
 - `info` — generates answers to queries using web search + LLM reasoning
 - `judge` — evaluates revealed answers, synthesizes a final answer, selects winners
 
