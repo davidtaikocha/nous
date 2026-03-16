@@ -1891,6 +1891,22 @@
       }
     }
 
+    async function resolveIpfsString(value) {
+      if (!value || (!value.startsWith('Qm') && !value.startsWith('bafy'))) return { text: value, cid: null };
+      try {
+        const response = await fetch(`${IPFS_GATEWAY_URL}/ipfs/${value}?pinataGatewayToken=${PINATA_JWT}`);
+        if (!response.ok) return { text: value, cid: value };
+        const data = await response.json();
+        if (data && typeof data.content === 'string' && Object.keys(data).length === 1) {
+          return { text: data.content, cid: value };
+        }
+        if (typeof data === 'string') return { text: data, cid: value };
+        return { text: JSON.stringify(data), cid: value };
+      } catch {
+        return { text: value, cid: value };
+      }
+    }
+
     function renderIpfsBadge(cid) {
       if (!cid) return '';
       const gatewayLink = `${IPFS_GATEWAY_URL}/ipfs/${cid}?pinataGatewayToken=${PINATA_JWT}`;
@@ -2078,6 +2094,7 @@
 
       container.innerHTML = (await Promise.all(sorted.map(async (r, idx) => {
         const req = r.request;
+        const resolvedQuery = await resolveIpfsString(req.query);
         const numAgents = Number(req.numInfoAgents);
         const committed = r.committedAgents.length;
         const revealed = r.revealedAgents.length;
@@ -2191,7 +2208,7 @@
               </span>
             </div>
             <div class="request-card-body">
-              <div class="request-query">${escapeHtml(req.query)}</div>
+              <div class="request-query">${escapeHtml(resolvedQuery.text)}${resolvedQuery.cid ? ' ' + renderIpfsBadge(resolvedQuery.cid) : ''}</div>
 
               <div class="request-meta-grid">
                 <div class="meta-item">

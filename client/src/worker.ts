@@ -114,6 +114,29 @@ export function createWorker({
     }
   }
 
+  function isCid(value: string): boolean {
+    return value.startsWith('Qm') || value.startsWith('bafy');
+  }
+
+  async function resolveString(value: string): Promise<string> {
+    if (!isCid(value)) return value;
+    const content = await ipfs.fetch(value);
+    if (typeof content === 'string') return content;
+    if (content && typeof content === 'object' && 'content' in content && typeof (content as any).content === 'string') {
+      return (content as any).content;
+    }
+    return JSON.stringify(content);
+  }
+
+  async function resolveRequestFields(request: RequestContext['request']): Promise<RequestContext['request']> {
+    const [query, specifications] = await Promise.all([
+      resolveString(request.query),
+      resolveString(request.specifications),
+    ]);
+    if (query === request.query && specifications === request.specifications) return request;
+    return { ...request, query, specifications };
+  }
+
   async function maybeAdvancePhase(context: RequestContext): Promise<RequestContext> {
     const currentTime = now();
 
@@ -286,6 +309,7 @@ export function createWorker({
     const includeJudge = options.includeJudge ?? true;
 
     let context = await chain.getRequestContext(requestId);
+    context = { ...context, request: await resolveRequestFields(context.request) };
     logger.info(`[req=${requestId}] Processing: phase=${context.phase}, query="${context.request.query.slice(0, 60)}"`);
     context = await maybeAdvancePhase(context);
 
