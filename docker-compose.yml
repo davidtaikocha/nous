@@ -10,6 +10,8 @@ services:
       CHAIN_ID: ${CHAIN_ID}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
       POLL_INTERVAL_MS: ${POLL_INTERVAL_MS:-5000}
+      PINATA_JWT: ${PINATA_JWT}
+      IPFS_GATEWAY_URL: ${IPFS_GATEWAY_URL}
     volumes:
       - ./agents.json:/app/agents.json:ro
       - ./state:/app/state
