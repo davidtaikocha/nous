@@ -18,6 +18,7 @@
       "id": "judge-1",
       "role": "judge",
       "model": "anthropic/claude-3.7-sonnet",
+      "specialty": "general",
       "privateKey": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
     }
   ]
