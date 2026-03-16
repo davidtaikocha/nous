@@ -1869,9 +1869,7 @@
         // Detect IPFS CID
         if (text.startsWith('Qm') || text.startsWith('bafy')) {
           try {
-            const response = await fetch(`${IPFS_GATEWAY_URL}/ipfs/${text}`, {
-              headers: { Authorization: `Bearer ${PINATA_JWT}` },
-            });
+            const response = await fetch(`${IPFS_GATEWAY_URL}/ipfs/${text}?pinataGatewayToken=${PINATA_JWT}`);
             if (!response.ok) return { text, _cid: text };
             const data = await response.json();
             // Handle { content: "..." } envelope from judge outputs
@@ -1895,7 +1893,7 @@
 
     function renderIpfsBadge(cid) {
       if (!cid) return '';
-      const gatewayLink = `${IPFS_GATEWAY_URL}/ipfs/${cid}`;
+      const gatewayLink = `${IPFS_GATEWAY_URL}/ipfs/${cid}?pinataGatewayToken=${PINATA_JWT}`;
       return `<a href="${gatewayLink}" target="_blank" rel="noopener" class="ipfs-badge" title="View raw on IPFS: ${cid}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 2L2 7l10 5 10-5-10-5z"/>
