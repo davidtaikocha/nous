@@ -1208,70 +1208,7 @@
       box-shadow: 0 0 0 2px rgba(232, 24, 153, 0.15);
     }
 
-    /* IPFS storage toggle */
-    .ipfs-toggle {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      cursor: pointer;
-      padding: 6px 0;
-      user-select: none;
-    }
-
-    .ipfs-toggle-track {
-      width: 34px;
-      height: 18px;
-      border-radius: 999px;
-      background: var(--bg-surface);
-      border: 1px solid var(--border);
-      position: relative;
-      transition: all 0.25s ease;
-      flex-shrink: 0;
-    }
-
-    .ipfs-toggle-thumb {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      background: var(--text-tertiary);
-      position: absolute;
-      top: 2px;
-      left: 2px;
-      transition: all 0.25s ease;
-    }
-
-    .ipfs-toggle input { display: none; }
-
-    .ipfs-toggle input:checked + .ipfs-toggle-track {
-      background: rgba(0, 106, 255, 0.15);
-      border-color: rgba(0, 106, 255, 0.4);
-    }
-
-    .ipfs-toggle input:checked + .ipfs-toggle-track .ipfs-toggle-thumb {
-      background: #5AAAFF;
-      left: 18px;
-      box-shadow: 0 0 6px rgba(90, 170, 255, 0.4);
-    }
-
-    .ipfs-toggle-label {
-      font-size: 0.65rem;
-      font-weight: 600;
-      letter-spacing: 0.06em;
-      color: var(--text-tertiary);
-      transition: color 0.2s ease;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .ipfs-toggle input:checked ~ .ipfs-toggle-label {
-      color: #5AAAFF;
-    }
-
-    .ipfs-toggle-label svg {
-      width: 12px;
-      height: 12px;
-    }
+    /* No custom toggle CSS needed — uses the same select styling as other settings */
 
     .chatbox-row {
       display: flex;
@@ -1585,18 +1522,10 @@
         </div>
         <div class="setting-group">
           <label>Storage</label>
-          <label class="ipfs-toggle">
-            <input type="checkbox" id="setting-ipfs" checked>
-            <span class="ipfs-toggle-track"><span class="ipfs-toggle-thumb"></span></span>
-            <span class="ipfs-toggle-label">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-                <path d="M2 17l10 5 10-5"/>
-                <path d="M2 12l10 5 10-5"/>
-              </svg>
-              IPFS
-            </span>
-          </label>
+          <select id="setting-ipfs">
+            <option value="ipfs" selected>IPFS</option>
+            <option value="onchain">On-chain</option>
+          </select>
         </div>
       </div>
       <div class="chatbox-row">
@@ -1857,7 +1786,7 @@
       const bondWei = ethers.parseEther(bondVal);
       const deadline = BigInt(Math.floor(Date.now() / 1000) + deadlineMin * 60);
 
-      const useIpfs = document.getElementById('setting-ipfs').checked;
+      const useIpfs = document.getElementById('setting-ipfs').value === 'ipfs';
 
       sendBtn.disabled = true;
       sendBtn.classList.add('sending');
