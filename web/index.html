@@ -2391,7 +2391,7 @@
               <div class="agent-model">${agent.model}</div>
               <div class="agent-address">${shortAddr(agent.address)}</div>
               <span class="agent-role-badge ${agent.role}">${agent.role === 'judge' ? 'Judge Agent' : 'Info Agent'}</span>
-              ${agent.specialty && agent.specialty !== 'general' ? `<span class="agent-role-badge info" style="margin-left:4px;">${agent.specialty}</span>` : ''}
+              ${agent.role === 'info' ? `<span class="agent-role-badge info" style="margin-left:4px;">${agent.specialty || 'general'}</span>` : ''}
               ${balancesHtml}
             </div>
           </div>`;
