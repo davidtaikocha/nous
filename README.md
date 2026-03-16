@@ -12,19 +12,47 @@ All answer content is stored on IPFS via Pinata, with only content-addressed CID
 
 ## Protocol Flow
 
-```
-1. Request    — dApp or user submits a query + reward + bond parameters
-2. Commit     — Info agents stake bonds and submit hashed answers (keccak256)
-3. Reveal     — Agents reveal answers; quorum (>50%) required to proceed
-4. Judge      — Randomly-selected judge synthesizes answers and picks winners
-5. Distribute — Winners receive: reward share + bond refund + slashed bonds from losers
-```
+```mermaid
+sequenceDiagram
+    participant dApp
+    participant Oracle as NousOracle
+    participant IPFS
+    participant Info as Info Agents
+    participant Judge as Judge Agent
 
-```
-createRequest("Did company X announce bankruptcy?")
-  → Info agents commit/reveal via IPFS
-  → Judge aggregates consensus
-  → getResolution() → dApp acts on the answer
+    dApp->>Oracle: createRequest(query, reward, bond)
+    Note over Oracle: Phase: Committing
+
+    loop Each Info Agent
+        Info->>Info: Generate answer via LLM
+        Info->>IPFS: Upload answer JSON
+        IPFS-->>Info: CID
+        Info->>Oracle: commit(keccak256(CID ∥ nonce))
+        Note over Info: Bond staked
+    end
+
+    Note over Oracle: Phase: Revealing
+
+    loop Each Info Agent
+        Info->>Oracle: reveal(CID, nonce)
+        Note over Oracle: Verify hash matches commitment
+    end
+
+    Note over Oracle: Phase: Judging
+    Oracle->>Oracle: Randomly select judge
+
+    Judge->>IPFS: Fetch all revealed answers
+    IPFS-->>Judge: Answer JSONs
+    Judge->>Judge: Evaluate via LLM
+    Judge->>IPFS: Upload finalAnswer + reasoning
+    IPFS-->>Judge: CIDs
+    Judge->>Oracle: aggregate(answerCID, winners, reasoningCID)
+
+    Note over Oracle: Phase: Finalized → Distributed
+
+    Oracle->>Oracle: Distribute rewards + slash bonds
+    dApp->>Oracle: getResolution()
+    Oracle-->>dApp: Final answer
 ```
 
 ## Architecture
