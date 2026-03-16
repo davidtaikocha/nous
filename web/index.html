@@ -1541,7 +1541,8 @@
     const RPC_URL = 'https://rpc.hoodi.taiko.xyz';
     const ORACLE_ADDRESS = '0x9a78aD39f2cA73059e7C7963Dd0D49e46f404434';
     const POLL_INTERVAL = 5000;
-    const IPFS_GATEWAY_URL = 'https://magenta-tremendous-cockroach-62.mypinata.cloud';
+    const IPFS_GATEWAY_URL = 'https://gateway.pinata.cloud';
+    const PINATA_JWT = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiIxMzllNjg2Ny00MTZlLTQyYTItYTFiYi0yYmQ2OGM5M2RmMzUiLCJlbWFpbCI6ImRhbkB0YWlrby54eXoiLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwicGluX3BvbGljeSI6eyJyZWdpb25zIjpbeyJkZXNpcmVkUmVwbGljYXRpb25Db3VudCI6MSwiaWQiOiJGUkExIn0seyJkZXNpcmVkUmVwbGljYXRpb25Db3VudCI6MSwiaWQiOiJOWUMxIn1dLCJ2ZXJzaW9uIjoxfSwibWZhX2VuYWJsZWQiOmZhbHNlLCJzdGF0dXMiOiJBQ1RJVkUifSwiYXV0aGVudGljYXRpb25UeXBlIjoic2NvcGVkS2V5Iiwic2NvcGVkS2V5S2V5IjoiMWQ3MTQ2NDg2MGNkNjE5NTU3NTkiLCJzY29wZWRLZXlTZWNyZXQiOiJiYTZmNDgyNzkxMzkxNGJhOTMwNjIxNmIzZmVlMWY1ZWRlMmI0YzJhYmI5OWU1YzJmMWUzZGQzYzg0Y2M1YWYwIiwiZXhwIjoxODA1MTYxOTYxfQ.nChU7BmzL3SmyAZ9IGCoIKxJBFy3tY2J6OwOVIhkhi4';
 
     const PHASE_NAMES = ['none', 'committing', 'revealing', 'judging', 'finalized', 'distributed', 'failed'];
 
@@ -1872,7 +1873,9 @@
         // Detect IPFS CID
         if (text.startsWith('Qm') || text.startsWith('bafy')) {
           try {
-            const response = await fetch(`${IPFS_GATEWAY_URL}/ipfs/${text}`);
+            const response = await fetch(`${IPFS_GATEWAY_URL}/ipfs/${text}`, {
+              headers: { Authorization: `Bearer ${PINATA_JWT}` },
+            });
             if (!response.ok) return { text, _cid: text };
             const data = await response.json();
             // Handle { content: "..." } envelope from judge outputs

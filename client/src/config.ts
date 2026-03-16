@@ -18,7 +18,7 @@ const envSchema = z.object({
   INFO_AGENT_PRIVATE_KEYS: z.string().default(''),
   JUDGE_AGENT_PRIVATE_KEYS: z.string().default(''),
   PINATA_JWT: z.string().min(1),
-  IPFS_GATEWAY_URL: z.string().url().default('https://magenta-tremendous-cockroach-62.mypinata.cloud'),
+  IPFS_GATEWAY_URL: z.string().url().default('https://gateway.pinata.cloud'),
 });
 
 export interface NousClientConfig {
