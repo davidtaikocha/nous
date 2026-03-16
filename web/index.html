@@ -688,40 +688,35 @@
       border: 1px solid rgba(71, 224, 160, 0.2);
     }
 
-    /* IPFS provenance badge */
+    /* IPFS provenance indicator */
     .ipfs-badge {
       display: inline-flex;
       align-items: center;
-      gap: 5px;
-      padding: 2px 9px;
+      gap: 4px;
+      padding: 3px 8px;
       border-radius: 999px;
-      font-size: 0.62rem;
+      font-size: 0.58rem;
       font-weight: 600;
-      letter-spacing: 0.03em;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
       text-decoration: none;
       transition: all 0.25s ease;
       background: rgba(0, 106, 255, 0.08);
       color: #5AAAFF;
-      border: 1px solid rgba(0, 106, 255, 0.2);
+      border: 1px solid rgba(0, 106, 255, 0.15);
     }
 
     .ipfs-badge:hover {
       background: rgba(0, 106, 255, 0.16);
-      border-color: rgba(0, 106, 255, 0.4);
+      border-color: rgba(0, 106, 255, 0.35);
       color: #7DC0FF;
-      box-shadow: 0 0 12px rgba(0, 106, 255, 0.12);
+      box-shadow: 0 0 10px rgba(0, 106, 255, 0.1);
     }
 
     .ipfs-badge svg {
-      width: 11px;
-      height: 11px;
+      width: 10px;
+      height: 10px;
       flex-shrink: 0;
-    }
-
-    .ipfs-cid {
-      font-family: 'Public Sans', monospace;
-      font-weight: 500;
-      opacity: 0.85;
     }
 
     /* On-chain raw badge (no IPFS) */
@@ -729,14 +724,15 @@
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      padding: 2px 9px;
+      padding: 3px 8px;
       border-radius: 999px;
-      font-size: 0.62rem;
+      font-size: 0.58rem;
       font-weight: 600;
-      letter-spacing: 0.03em;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
       background: rgba(93, 99, 111, 0.12);
       color: var(--text-tertiary);
-      border: 1px solid rgba(93, 99, 111, 0.2);
+      border: 1px solid rgba(93, 99, 111, 0.15);
     }
 
     .onchain-badge svg {
@@ -1899,16 +1895,14 @@
 
     function renderIpfsBadge(cid) {
       if (!cid) return '';
-      const shortCid = cid.length > 16 ? cid.slice(0, 7) + '…' + cid.slice(-5) : cid;
       const gatewayLink = `${IPFS_GATEWAY_URL}/ipfs/${cid}`;
-      return `<a href="${gatewayLink}" target="_blank" rel="noopener" class="ipfs-badge" title="${cid}">
+      return `<a href="${gatewayLink}" target="_blank" rel="noopener" class="ipfs-badge" title="View raw on IPFS: ${cid}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 2L2 7l10 5 10-5-10-5z"/>
           <path d="M2 17l10 5 10-5"/>
           <path d="M2 12l10 5 10-5"/>
         </svg>
-        <span>IPFS</span>
-        <span class="ipfs-cid">${shortCid}</span>
+        IPFS
       </a>`;
     }
 
@@ -2151,10 +2145,7 @@
             <div class="final-answer-section">
               <div class="final-answer-header">
                 <div class="final-answer-label">Final Answer</div>
-                <div style="display:flex;gap:6px;align-items:center;">
-                  ${finalCid ? renderIpfsBadge(finalCid) : ''}
-                  ${reasoningCid ? renderIpfsBadge(reasoningCid) : ''}
-                </div>
+                ${(finalCid || reasoningCid) ? renderIpfsBadge(finalCid || reasoningCid) : ''}
               </div>
               <div class="final-answer-text">${escapeHtml(typeof text === 'string' ? text : JSON.stringify(text))}</div>
               ${reasoningText ? `
