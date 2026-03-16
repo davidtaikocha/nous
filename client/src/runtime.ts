@@ -13,6 +13,7 @@ import type { NousClientConfig } from './config.js';
 import { createNousChainClient } from './chain.js';
 import { generateInfoAgentResult } from './infoAgent.js';
 import { generateJudgeDecision } from './judgeAgent.js';
+import { createIpfsService } from './ipfs.js';
 import { createFileStateStore } from './store.js';
 import { createWorker, type InfoAgentRuntime, type JudgeAgentRuntime } from './worker.js';
 
@@ -107,12 +108,17 @@ export function buildRuntime({ config, agentModels }: { config: NousClientConfig
     walletClients,
     oracleAddress: config.oracleAddress,
   });
+  const ipfs = createIpfsService({
+    pinataJwt: config.pinataJwt,
+    gatewayUrl: config.ipfsGatewayUrl,
+  });
   const store = createFileStateStore(config.stateFile);
   const worker = createWorker({
     chain: chainClient,
     store,
     infoAgents,
     judgeAgents,
+    ipfs,
     pollIntervalMs: config.pollIntervalMs,
   });
 

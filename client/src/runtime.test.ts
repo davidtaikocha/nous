@@ -15,6 +15,8 @@ describe('buildRuntime', () => {
         stateFile: '/tmp/nous-agent-state.json',
         infoAgentPrivateKeys: [`0x${'11'.repeat(32)}`],
         judgeAgentPrivateKeys: [`0x${'22'.repeat(32)}`],
+        pinataJwt: 'test-pinata-jwt',
+        ipfsGatewayUrl: 'https://test.mypinata.cloud',
       },
     });
 

@@ -55,6 +55,8 @@ describe('buildAgentConfigs', () => {
         stateFile: '/tmp/unused.json',
         infoAgentPrivateKeys: [],
         judgeAgentPrivateKeys: [],
+        pinataJwt: 'test-pinata-jwt',
+        ipfsGatewayUrl: 'https://test.mypinata.cloud',
       },
       stateDir: '/tmp/nous-state',
     });

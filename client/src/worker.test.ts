@@ -57,6 +57,7 @@ describe('worker', () => {
         },
       ],
       judgeAgents: [],
+      ipfs: { upload: vi.fn(), fetch: vi.fn() },
       logger: {
         info: vi.fn(),
         warn: vi.fn(),
