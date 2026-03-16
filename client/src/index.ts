@@ -30,3 +30,4 @@ export * from './runtime.js';
 export * from './store.js';
 export * from './types.js';
 export * from './worker.js';
+export * from './ipfs.js';
