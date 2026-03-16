@@ -372,6 +372,18 @@
       border: 1px solid rgba(235, 178, 34, 0.25);
     }
 
+    .agent-role-badge.general {
+      background: rgba(93, 99, 111, 0.12);
+      color: var(--grey-300);
+      border: 1px solid rgba(93, 99, 111, 0.25);
+    }
+
+    .agent-role-badge.specialty {
+      background: rgba(0, 106, 255, 0.12);
+      color: #5AAAFF;
+      border: 1px solid rgba(0, 106, 255, 0.25);
+    }
+
     .agent-address {
       font-size: 0.68rem;
       color: var(--text-tertiary);
@@ -2391,7 +2403,7 @@
               <div class="agent-model">${agent.model}</div>
               <div class="agent-address">${shortAddr(agent.address)}</div>
               <span class="agent-role-badge ${agent.role}">${agent.role === 'judge' ? 'Judge Agent' : 'Info Agent'}</span>
-              ${agent.role === 'info' ? `<span class="agent-role-badge info" style="margin-left:4px;">${agent.specialty || 'general'}</span>` : ''}
+              ${agent.role === 'info' ? `<span class="agent-role-badge ${(agent.specialty || 'general') === 'general' ? 'general' : 'specialty'}" style="margin-left:4px;">${agent.specialty || 'general'}</span>` : ''}
               ${balancesHtml}
             </div>
           </div>`;
