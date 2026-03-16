@@ -1,10 +1,11 @@
 import { randomBytes } from 'node:crypto';
 
-import { getAddress, hexToString, type Address, type Hex } from 'viem';
+import { getAddress, hexToString, stringToHex, type Address, type Hex } from 'viem';
 
 import { computeCommitment } from './chain.js';
-import { decodeInfoAgentResult, encodeInfoAgentResult } from './infoAgent.js';
-import { encodeJudgeDecision, validateJudgeDecision } from './judgeAgent.js';
+import { parseInfoAgentResult } from './infoAgent.js';
+import type { IpfsService } from './ipfs.js';
+import { validateJudgeDecision } from './judgeAgent.js';
 import type {
   DecodedInfoAnswer,
   InfoAgentResult,
@@ -38,6 +39,7 @@ interface WorkerConfig {
   store: StateStore;
   infoAgents: InfoAgentRuntime[];
   judgeAgents: JudgeAgentRuntime[];
+  ipfs: IpfsService;
   pollIntervalMs?: number;
   logger?: WorkerLogger;
   now?: () => bigint;
@@ -50,24 +52,6 @@ function createRandomNonce(): bigint {
 
 function lower(address: Address): string {
   return getAddress(address).toLowerCase();
-}
-
-function decodeAnswer(answer: Hex): DecodedInfoAnswer {
-  const parsedAnswer = decodeInfoAgentResult(answer);
-
-  try {
-    return {
-      rawAnswer: answer,
-      parsedAnswer,
-      text: parsedAnswer ? JSON.stringify(parsedAnswer) : hexToString(answer),
-    };
-  } catch {
-    return {
-      rawAnswer: answer,
-      parsedAnswer,
-      text: answer,
-    };
-  }
 }
 
 function delay(ms: number, signal?: AbortSignal): Promise<void> {
@@ -93,11 +77,43 @@ export function createWorker({
   store,
   infoAgents,
   judgeAgents,
+  ipfs,
   pollIntervalMs = 5_000,
   logger = console,
   now = () => BigInt(Math.floor(Date.now() / 1_000)),
   createNonce = createRandomNonce,
 }: WorkerConfig) {
+  async function resolveAnswer(answerHex: Hex): Promise<DecodedInfoAnswer> {
+    const cidOrJson = hexToString(answerHex);
+
+    // Detect IPFS CID (CIDv0 or CIDv1) vs raw JSON
+    if (cidOrJson.startsWith('Qm') || cidOrJson.startsWith('bafy')) {
+      const content = await ipfs.fetch(cidOrJson);
+      const parsedAnswer = parseInfoAgentResult(content);
+      return {
+        rawAnswer: answerHex,
+        parsedAnswer,
+        text: JSON.stringify(parsedAnswer),
+      };
+    }
+
+    // Fallback: treat as raw JSON (backward compat)
+    try {
+      const parsedAnswer = parseInfoAgentResult(JSON.parse(cidOrJson));
+      return {
+        rawAnswer: answerHex,
+        parsedAnswer,
+        text: JSON.stringify(parsedAnswer),
+      };
+    } catch {
+      return {
+        rawAnswer: answerHex,
+        parsedAnswer: null,
+        text: cidOrJson,
+      };
+    }
+  }
+
   async function maybeAdvancePhase(context: RequestContext): Promise<RequestContext> {
     const currentTime = now();
 
@@ -139,7 +155,9 @@ export function createWorker({
       const result = await agent.generate(context.request);
       logger.info(`[req=${context.requestId}] Agent ${agent.address} generated answer (confidence=${result.confidence}): "${result.answer.slice(0, 80)}..."`);
 
-      const answer = encodeInfoAgentResult(result);
+      const cid = await ipfs.upload(result);
+      logger.info(`[req=${context.requestId}] Agent ${agent.address} uploaded answer to IPFS: ${cid}`);
+      const answer = stringToHex(cid);
       const nonce = createNonce();
       const commitment = computeCommitment(answer, nonce);
 
@@ -225,10 +243,12 @@ export function createWorker({
 
     logger.info(`[req=${context.requestId}] Judging: ${context.revealedAgents.length} revealed answers to evaluate`);
 
-    const revealedAnswers = context.revealedAgents.map((agentAddress, index) => ({
-      agentAddress,
-      answer: decodeAnswer(context.revealedAnswers[index] ?? '0x'),
-    }));
+    const revealedAnswers = await Promise.all(
+      context.revealedAgents.map(async (agentAddress, index) => ({
+        agentAddress,
+        answer: await resolveAnswer(context.revealedAnswers[index] ?? '0x'),
+      })),
+    );
 
     logger.info(`[req=${context.requestId}] Judge ${judge.address} generating decision...`);
     const decision = validateJudgeDecision(
@@ -240,15 +260,19 @@ export function createWorker({
     );
     logger.info(`[req=${context.requestId}] Judge decision: winners=${decision.winnerAddresses.join(', ')}, answer="${decision.finalAnswer.slice(0, 80)}..."`);
 
-    const encoded = encodeJudgeDecision(decision);
+    const [finalAnswerCid, reasoningCid] = await Promise.all([
+      ipfs.upload({ content: decision.finalAnswer }),
+      ipfs.upload({ content: decision.reasoning }),
+    ]);
+    logger.info(`[req=${context.requestId}] Judge uploaded to IPFS: finalAnswer=${finalAnswerCid}, reasoning=${reasoningCid}`);
 
     logger.info(`[req=${context.requestId}] Judge ${judge.address} sending aggregate tx...`);
     await chain.aggregate(
       judge.address,
       context.requestId,
-      encoded.finalAnswer,
+      stringToHex(finalAnswerCid),
       decision.winnerAddresses,
-      encoded.reasoning,
+      stringToHex(reasoningCid),
     );
 
     logger.info(`[req=${context.requestId}] Aggregated by judge ${judge.address} ✓`);
