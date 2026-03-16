@@ -1208,6 +1208,71 @@
       box-shadow: 0 0 0 2px rgba(232, 24, 153, 0.15);
     }
 
+    /* IPFS storage toggle */
+    .ipfs-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      padding: 6px 0;
+      user-select: none;
+    }
+
+    .ipfs-toggle-track {
+      width: 34px;
+      height: 18px;
+      border-radius: 999px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      position: relative;
+      transition: all 0.25s ease;
+      flex-shrink: 0;
+    }
+
+    .ipfs-toggle-thumb {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--text-tertiary);
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      transition: all 0.25s ease;
+    }
+
+    .ipfs-toggle input { display: none; }
+
+    .ipfs-toggle input:checked + .ipfs-toggle-track {
+      background: rgba(0, 106, 255, 0.15);
+      border-color: rgba(0, 106, 255, 0.4);
+    }
+
+    .ipfs-toggle input:checked + .ipfs-toggle-track .ipfs-toggle-thumb {
+      background: #5AAAFF;
+      left: 18px;
+      box-shadow: 0 0 6px rgba(90, 170, 255, 0.4);
+    }
+
+    .ipfs-toggle-label {
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      color: var(--text-tertiary);
+      transition: color 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .ipfs-toggle input:checked ~ .ipfs-toggle-label {
+      color: #5AAAFF;
+    }
+
+    .ipfs-toggle-label svg {
+      width: 12px;
+      height: 12px;
+    }
+
     .chatbox-row {
       display: flex;
       align-items: center;
@@ -1518,6 +1583,21 @@
           <label>Specifications</label>
           <input type="text" id="setting-specs" value="" placeholder="Optional context...">
         </div>
+        <div class="setting-group">
+          <label>Storage</label>
+          <label class="ipfs-toggle">
+            <input type="checkbox" id="setting-ipfs" checked>
+            <span class="ipfs-toggle-track"><span class="ipfs-toggle-thumb"></span></span>
+            <span class="ipfs-toggle-label">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                <path d="M2 17l10 5 10-5"/>
+                <path d="M2 12l10 5 10-5"/>
+              </svg>
+              IPFS
+            </span>
+          </label>
+        </div>
       </div>
       <div class="chatbox-row">
         <button class="settings-toggle" id="settings-toggle" onclick="toggleSettings()" title="Request settings">
@@ -1777,12 +1857,38 @@
       const bondWei = ethers.parseEther(bondVal);
       const deadline = BigInt(Math.floor(Date.now() / 1000) + deadlineMin * 60);
 
+      const useIpfs = document.getElementById('setting-ipfs').checked;
+
       sendBtn.disabled = true;
       sendBtn.classList.add('sending');
-      status.textContent = 'Preparing transaction\u2026';
+      status.textContent = useIpfs ? 'Uploading to IPFS\u2026' : 'Preparing transaction\u2026';
       status.className = 'chatbox-status';
 
+      let onChainQuery = query;
+      let onChainSpecs = specs;
+
       try {
+        if (useIpfs) {
+          const uploadToIpfs = async (content) => {
+            const response = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${PINATA_JWT}`,
+              },
+              body: JSON.stringify({ pinataContent: { content } }),
+            });
+            if (!response.ok) throw new Error(`IPFS upload failed (${response.status})`);
+            const data = await response.json();
+            return data.IpfsHash;
+          };
+
+          onChainQuery = await uploadToIpfs(query);
+          if (specs) {
+            onChainSpecs = await uploadToIpfs(specs);
+          }
+          status.textContent = 'Sending transaction\u2026';
+        }
         // ERC-20: approve oracle to spend reward + bond (bond * numAgents isn't needed, just reward)
         if (!isNative && rewardWei > 0n) {
           const token = new ethers.Contract(rewardToken, ERC20_ABI, walletSigner);
@@ -1799,14 +1905,14 @@
         const msgValue = isNative ? rewardWei : 0n;
 
         const tx = await oracleWithSigner.createRequest(
-          query,
+          onChainQuery,
           numAgents,
           rewardWei,
           bondWei,
           deadline,
           rewardToken,
           bondToken,
-          specs,
+          onChainSpecs,
           { capabilities: [], domains: [] },
           { value: msgValue },
         );
