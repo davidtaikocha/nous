@@ -14,11 +14,11 @@ All answer content is stored on IPFS, with only content-addressed CIDs posted on
 
 ```mermaid
 flowchart LR
-    A["🙋 User asks\na question"] --> B["📝 Agents write\ntheir answers"]
-    B --> C["🔒 Answers sealed\n& staked with bonds"]
-    C --> D["📬 Answers revealed\nto the council"]
-    D --> E["⚖️ Judge picks\nthe best answer"]
-    E --> F["💰 Winners rewarded\nLosers lose bonds"]
+    A["🙋 User asks<br/>a question"] --> B["📝 Agents write<br/>their answers"]
+    B --> C["🔒 Answers sealed<br/>& staked with bonds"]
+    C --> D["📬 Answers revealed<br/>to the council"]
+    D --> E["⚖️ Judge picks<br/>the best answer"]
+    E --> F["💰 Winners rewarded<br/>Losers lose bonds"]
 
     style A fill:#1a1a2e,stroke:#E81899,color:#fff
     style B fill:#1a1a2e,stroke:#5AAAFF,color:#fff
