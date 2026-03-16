@@ -644,13 +644,21 @@
       border-radius: var(--radius);
       padding: 14px;
       margin-top: 10px;
+      position: relative;
+    }
+
+    .reveal-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      gap: 8px;
     }
 
     .reveal-agent {
       font-size: 0.7rem;
       font-weight: 600;
       color: var(--text-tertiary);
-      margin-bottom: 6px;
       letter-spacing: 0.04em;
     }
 
@@ -660,9 +668,17 @@
       color: var(--text-secondary);
     }
 
+    .reveal-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 8px;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
     .reveal-confidence {
       display: inline-block;
-      margin-top: 6px;
       padding: 2px 8px;
       border-radius: 999px;
       font-size: 0.65rem;
@@ -672,13 +688,162 @@
       border: 1px solid rgba(71, 224, 160, 0.2);
     }
 
+    /* IPFS provenance badge */
+    .ipfs-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 9px;
+      border-radius: 999px;
+      font-size: 0.62rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-decoration: none;
+      transition: all 0.25s ease;
+      background: rgba(0, 106, 255, 0.08);
+      color: #5AAAFF;
+      border: 1px solid rgba(0, 106, 255, 0.2);
+    }
+
+    .ipfs-badge:hover {
+      background: rgba(0, 106, 255, 0.16);
+      border-color: rgba(0, 106, 255, 0.4);
+      color: #7DC0FF;
+      box-shadow: 0 0 12px rgba(0, 106, 255, 0.12);
+    }
+
+    .ipfs-badge svg {
+      width: 11px;
+      height: 11px;
+      flex-shrink: 0;
+    }
+
+    .ipfs-cid {
+      font-family: 'Public Sans', monospace;
+      font-weight: 500;
+      opacity: 0.85;
+    }
+
+    /* On-chain raw badge (no IPFS) */
+    .onchain-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 9px;
+      border-radius: 999px;
+      font-size: 0.62rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      background: rgba(93, 99, 111, 0.12);
+      color: var(--text-tertiary);
+      border: 1px solid rgba(93, 99, 111, 0.2);
+    }
+
+    .onchain-badge svg {
+      width: 10px;
+      height: 10px;
+      flex-shrink: 0;
+    }
+
+    /* Sources list */
+    .reveal-sources {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px dashed rgba(68, 74, 85, 0.4);
+    }
+
+    .reveal-sources-label {
+      font-size: 0.6rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+      margin-bottom: 4px;
+    }
+
+    .reveal-sources-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .source-chip {
+      font-size: 0.62rem;
+      padding: 1px 7px;
+      border-radius: 4px;
+      background: rgba(93, 99, 111, 0.15);
+      color: var(--text-tertiary);
+      border: 1px solid rgba(68, 74, 85, 0.3);
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Reasoning expandable */
+    .reveal-reasoning {
+      margin-top: 8px;
+    }
+
+    .reasoning-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.65rem;
+      font-weight: 600;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      border: none;
+      background: none;
+      padding: 2px 0;
+      letter-spacing: 0.03em;
+      transition: color 0.2s ease;
+    }
+
+    .reasoning-toggle:hover { color: var(--text-secondary); }
+
+    .reasoning-toggle svg {
+      width: 12px;
+      height: 12px;
+      transition: transform 0.25s ease;
+    }
+
+    .reasoning-toggle[aria-expanded="true"] svg {
+      transform: rotate(180deg);
+    }
+
+    .reasoning-content {
+      overflow: hidden;
+      max-height: 0;
+      opacity: 0;
+      transition: max-height 0.35s ease, opacity 0.25s ease, margin 0.25s ease;
+      font-size: 0.75rem;
+      line-height: 1.5;
+      color: var(--text-tertiary);
+    }
+
+    .reasoning-content.expanded {
+      max-height: 500px;
+      opacity: 1;
+      margin-top: 6px;
+    }
+
     /* Final answer */
     .final-answer-section {
       margin-top: 16px;
-      padding: 16px;
+      padding: 16px 16px 14px;
       background: rgba(71, 224, 160, 0.05);
       border: 1px solid rgba(71, 224, 160, 0.15);
       border-radius: var(--radius);
+      position: relative;
+    }
+
+    .final-answer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      gap: 8px;
     }
 
     .final-answer-label {
@@ -687,13 +852,30 @@
       letter-spacing: 0.1em;
       text-transform: uppercase;
       color: var(--green-300);
-      margin-bottom: 8px;
     }
 
     .final-answer-text {
       font-size: 0.9rem;
       line-height: 1.6;
       color: var(--text-primary);
+    }
+
+    .final-reasoning {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px dashed rgba(71, 224, 160, 0.15);
+    }
+
+    .final-reasoning .reasoning-toggle {
+      color: rgba(71, 224, 160, 0.6);
+    }
+
+    .final-reasoning .reasoning-toggle:hover {
+      color: var(--green-300);
+    }
+
+    .final-reasoning .reasoning-content {
+      color: rgba(71, 224, 160, 0.5);
     }
 
     /* Reward distribution */
@@ -1691,15 +1873,15 @@
         if (text.startsWith('Qm') || text.startsWith('bafy')) {
           try {
             const response = await fetch(`${IPFS_GATEWAY_URL}/ipfs/${text}`);
-            if (!response.ok) return { text };
+            if (!response.ok) return { text, _cid: text };
             const data = await response.json();
             // Handle { content: "..." } envelope from judge outputs
             if (data && typeof data.content === 'string' && Object.keys(data).length === 1) {
-              return { text: data.content };
+              return { text: data.content, _cid: text };
             }
-            return data;
+            return { ...data, _cid: text };
           } catch {
-            return { text };
+            return { text, _cid: text };
           }
         }
         try {
@@ -1710,6 +1892,60 @@
       } catch {
         return null;
       }
+    }
+
+    function renderIpfsBadge(cid) {
+      if (!cid) return '';
+      const shortCid = cid.length > 16 ? cid.slice(0, 7) + '…' + cid.slice(-5) : cid;
+      const gatewayLink = `${IPFS_GATEWAY_URL}/ipfs/${cid}`;
+      return `<a href="${gatewayLink}" target="_blank" rel="noopener" class="ipfs-badge" title="${cid}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+          <path d="M2 17l10 5 10-5"/>
+          <path d="M2 12l10 5 10-5"/>
+        </svg>
+        <span>IPFS</span>
+        <span class="ipfs-cid">${shortCid}</span>
+      </a>`;
+    }
+
+    function renderOnchainBadge() {
+      return `<span class="onchain-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <path d="M8 12h8"/>
+        </svg>
+        On-chain
+      </span>`;
+    }
+
+    function renderReasoningBlock(reasoning, id) {
+      if (!reasoning) return '';
+      return `<div class="reveal-reasoning">
+        <button class="reasoning-toggle" aria-expanded="false" onclick="toggleReasoning(this, '${id}')">
+          <span>Show reasoning</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="reasoning-content" id="${id}">${escapeHtml(reasoning)}</div>
+      </div>`;
+    }
+
+    function toggleReasoning(btn, id) {
+      const content = document.getElementById(id);
+      const expanded = btn.getAttribute('aria-expanded') === 'true';
+      btn.setAttribute('aria-expanded', !expanded);
+      btn.querySelector('span').textContent = expanded ? 'Show reasoning' : 'Hide reasoning';
+      content.classList.toggle('expanded', !expanded);
+    }
+
+    function renderSourcesList(sources) {
+      if (!sources || !Array.isArray(sources) || sources.length === 0) return '';
+      return `<div class="reveal-sources">
+        <div class="reveal-sources-label">Sources</div>
+        <div class="reveal-sources-list">
+          ${sources.map(s => `<span class="source-chip" title="${escapeHtml(s)}">${escapeHtml(s)}</span>`).join('')}
+        </div>
+      </div>`;
     }
 
     function escapeHtml(str) {
@@ -1861,19 +2097,33 @@
             const decoded = await tryDecodeHex(r.revealedAnswers[i]);
             let answerText = 'Unable to decode';
             let confidence = null;
+            let reasoning = null;
+            let sources = null;
+            let cid = null;
             if (decoded) {
+              cid = decoded._cid || null;
               if (decoded.answer) {
                 answerText = decoded.answer;
                 confidence = decoded.confidence;
+                reasoning = decoded.reasoning || null;
+                sources = decoded.sources || null;
               } else if (decoded.text) {
                 answerText = decoded.text;
               }
             }
+            const cardId = `reasoning-${r.id}-${i}`;
             return `
               <div class="reveal-card">
-                <div class="reveal-agent">${shortAddr(agent)}</div>
+                <div class="reveal-card-header">
+                  <div class="reveal-agent">${shortAddr(agent)}</div>
+                  ${cid ? renderIpfsBadge(cid) : renderOnchainBadge()}
+                </div>
                 <div class="reveal-answer">${escapeHtml(answerText)}</div>
-                ${confidence !== null ? `<span class="reveal-confidence">${(confidence * 100).toFixed(0)}% confidence</span>` : ''}
+                <div class="reveal-footer">
+                  ${confidence !== null ? `<span class="reveal-confidence">${(confidence * 100).toFixed(0)}% confidence</span>` : '<span></span>'}
+                </div>
+                ${renderReasoningBlock(reasoning, cardId)}
+                ${renderSourcesList(sources)}
               </div>`;
           }))).join('');
 
@@ -1888,14 +2138,26 @@
         if (r.finalized && r.finalAnswer && r.finalAnswer !== '0x') {
           const decoded = await tryDecodeHex(r.finalAnswer);
           const text = decoded?.text || decoded?.answer || decoded || 'Unable to decode';
+          const finalCid = decoded?._cid || null;
           const reasoningDecoded = r.reasoning ? await tryDecodeHex(r.reasoning) : null;
           const reasoningText = reasoningDecoded?.text || (typeof reasoningDecoded === 'string' ? reasoningDecoded : null);
+          const reasoningCid = reasoningDecoded?._cid || null;
+          const finalReasoningId = `final-reasoning-${r.id}`;
 
           finalHtml = `
             <div class="final-answer-section">
-              <div class="final-answer-label">Final Answer</div>
+              <div class="final-answer-header">
+                <div class="final-answer-label">Final Answer</div>
+                <div style="display:flex;gap:6px;align-items:center;">
+                  ${finalCid ? renderIpfsBadge(finalCid) : ''}
+                  ${reasoningCid ? renderIpfsBadge(reasoningCid) : ''}
+                </div>
+              </div>
               <div class="final-answer-text">${escapeHtml(typeof text === 'string' ? text : JSON.stringify(text))}</div>
-              ${reasoningText ? `<div style="margin-top: 10px; font-size: 0.75rem; color: var(--text-tertiary); line-height: 1.5;"><strong>Reasoning:</strong> ${escapeHtml(reasoningText)}</div>` : ''}
+              ${reasoningText ? `
+                <div class="final-reasoning">
+                  ${renderReasoningBlock(reasoningText, finalReasoningId)}
+                </div>` : ''}
             </div>`;
         }
 
