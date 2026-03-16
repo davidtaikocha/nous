@@ -1871,6 +1871,13 @@
       return addr.slice(0, 6) + '\u2026' + addr.slice(-4);
     }
 
+    function agentDisplayName(addr) {
+      if (!addr || addr === ethers.ZeroAddress) return '\u2014';
+      const agent = AGENTS.find(a => a.address.toLowerCase() === addr.toLowerCase());
+      if (agent) return agent.name;
+      return shortAddr(addr);
+    }
+
     function formatEth(wei) {
       const val = parseFloat(ethers.formatEther(wei));
       if (val === 0) return '0 ETH';
@@ -2162,7 +2169,7 @@
             return `
               <div class="reveal-card">
                 <div class="reveal-card-header">
-                  <div class="reveal-agent">${shortAddr(agent)}</div>
+                  <div class="reveal-agent">${agentDisplayName(agent)}</div>
                   ${cid ? renderIpfsBadge(cid) : renderOnchainBadge()}
                 </div>
                 <div class="reveal-answer">${escapeHtml(answerText)}</div>
@@ -2221,7 +2228,7 @@
               </div>
               ${r.winners.map((addr) => `
                 <div class="reward-winner-row">
-                  <span class="reward-winner-addr"><span class="winner-crown">&#x1F3C6;</span> ${shortAddr(addr)}</span>
+                  <span class="reward-winner-addr"><span class="winner-crown">&#x1F3C6;</span> ${agentDisplayName(addr)}</span>
                   <span class="reward-winner-amount">+${formatTokenAmount(payoutPerWinner, rewardSymbol)}</span>
                 </div>`).join('')}
               ${totalLosers > 0 ? `
