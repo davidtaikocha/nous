@@ -2402,8 +2402,8 @@
               <div class="agent-name">${agent.name}</div>
               <div class="agent-model">${agent.model}</div>
               <div class="agent-address">${shortAddr(agent.address)}</div>
-              <span class="agent-role-badge ${agent.role}">${agent.role === 'judge' ? 'Judge' : 'Info'}</span>
-              <span class="agent-role-badge ${(agent.specialty || 'general') === 'general' ? 'general' : 'specialty'}" style="margin-left:4px;">${agent.specialty || 'general'}</span>
+              <span class="agent-role-badge ${agent.role}">Role: ${agent.role === 'judge' ? 'Judge' : 'Info'}</span>
+              <span class="agent-role-badge ${(agent.specialty || 'general') === 'general' ? 'general' : 'specialty'}" style="margin-left:4px;">Specialty: ${agent.specialty || 'general'}</span>
               ${balancesHtml}
             </div>
           </div>`;
