@@ -1359,6 +1359,7 @@
     const RPC_URL = 'https://rpc.hoodi.taiko.xyz';
     const ORACLE_ADDRESS = '0x9a78aD39f2cA73059e7C7963Dd0D49e46f404434';
     const POLL_INTERVAL = 5000;
+    const IPFS_GATEWAY_URL = 'https://magenta-tremendous-cockroach-62.mypinata.cloud';
 
     const PHASE_NAMES = ['none', 'committing', 'revealing', 'judging', 'finalized', 'distributed', 'failed'];
 
@@ -1682,10 +1683,25 @@
       return `${s}s`;
     }
 
-    function tryDecodeHex(hex) {
+    async function tryDecodeHex(hex) {
       if (!hex || hex === '0x') return null;
       try {
         const text = ethers.toUtf8String(hex);
+        // Detect IPFS CID
+        if (text.startsWith('Qm') || text.startsWith('bafy')) {
+          try {
+            const response = await fetch(`${IPFS_GATEWAY_URL}/ipfs/${text}`);
+            if (!response.ok) return { text };
+            const data = await response.json();
+            // Handle { content: "..." } envelope from judge outputs
+            if (data && typeof data.content === 'string' && Object.keys(data).length === 1) {
+              return { text: data.content };
+            }
+            return data;
+          } catch {
+            return { text };
+          }
+        }
         try {
           return JSON.parse(text);
         } catch {
@@ -1784,7 +1800,7 @@
     let lastRequestsHash = '';
     let knownRequestIds = new Set();
 
-    function renderRequests(requests) {
+    async function renderRequests(requests) {
       const container = document.getElementById('request-list');
 
       // Build a hash of the current state to detect changes
@@ -1829,7 +1845,7 @@
       // Show newest first
       const sorted = [...requests].reverse();
 
-      container.innerHTML = sorted.map((r, idx) => {
+      container.innerHTML = (await Promise.all(sorted.map(async (r, idx) => {
         const req = r.request;
         const numAgents = Number(req.numInfoAgents);
         const committed = r.committedAgents.length;
@@ -1841,8 +1857,8 @@
 
         let answersHtml = '';
         if (r.revealedAgents.length > 0) {
-          const answerCards = r.revealedAgents.map((agent, i) => {
-            const decoded = tryDecodeHex(r.revealedAnswers[i]);
+          const answerCards = (await Promise.all(r.revealedAgents.map(async (agent, i) => {
+            const decoded = await tryDecodeHex(r.revealedAnswers[i]);
             let answerText = 'Unable to decode';
             let confidence = null;
             if (decoded) {
@@ -1859,7 +1875,7 @@
                 <div class="reveal-answer">${escapeHtml(answerText)}</div>
                 ${confidence !== null ? `<span class="reveal-confidence">${(confidence * 100).toFixed(0)}% confidence</span>` : ''}
               </div>`;
-          }).join('');
+          }))).join('');
 
           answersHtml = `
             <div class="reveals-section">
@@ -1870,9 +1886,9 @@
 
         let finalHtml = '';
         if (r.finalized && r.finalAnswer && r.finalAnswer !== '0x') {
-          const decoded = tryDecodeHex(r.finalAnswer);
+          const decoded = await tryDecodeHex(r.finalAnswer);
           const text = decoded?.text || decoded?.answer || decoded || 'Unable to decode';
-          const reasoningDecoded = r.reasoning ? tryDecodeHex(r.reasoning) : null;
+          const reasoningDecoded = r.reasoning ? await tryDecodeHex(r.reasoning) : null;
           const reasoningText = reasoningDecoded?.text || (typeof reasoningDecoded === 'string' ? reasoningDecoded : null);
 
           finalHtml = `
@@ -1974,7 +1990,7 @@
               ${rewardHtml}
             </div>
           </div>`;
-      }).join('');
+      }))).join('');
     }
 
     async function poll() {
@@ -1993,7 +2009,7 @@
         }
         await Promise.all([...tokenAddrs].map(resolveTokenSymbol));
         renderPipeline(requests);
-        renderRequests(requests);
+        await renderRequests(requests);
         refreshText.textContent = `Updated ${new Date().toLocaleTimeString()}`;
       } catch (err) {
         console.error('Poll error:', err);
