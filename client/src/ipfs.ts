@@ -44,7 +44,9 @@ export function createIpfsService({
 
     async fetch(cid: string): Promise<unknown> {
       const url = `${gatewayUrl}/ipfs/${cid}`;
-      const response = await fetchFn(url);
+      const response = await fetchFn(url, {
+        headers: { Authorization: `Bearer ${pinataJwt}` },
+      });
 
       if (!response.ok) {
         const text = await response.text();

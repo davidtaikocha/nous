@@ -87,6 +87,7 @@ describe('createIpfsService', () => {
       expect(result).toEqual({ answer: 'hello', confidence: 0.9 });
       expect(mockFetch).toHaveBeenCalledWith(
         'https://test.mypinata.cloud/ipfs/QmYwAPJzv5CZsnANfSPFkVdR4aaXrSHipKchUEeGzTpsRF',
+        { headers: { Authorization: 'Bearer test-jwt' } },
       );
     });
 
