@@ -403,10 +403,10 @@ contract NousOracleTest is Test {
         vm.prank(judge);
         oracle.aggregate(requestId, abi.encode("sunny, final"), winners, abi.encode("agent1 was more accurate"));
 
-        assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.Finalized));
+        assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.DisputeWindow));
 
         (bytes memory finalAnswer, bool finalized) = oracle.getResolution(requestId);
-        assertTrue(finalized);
+        assertFalse(finalized);
         assertEq(finalAnswer, abi.encode("sunny, final"));
     }
 
@@ -449,6 +449,8 @@ contract NousOracleTest is Test {
         vm.prank(judge);
         oracle.aggregate(requestId, abi.encode("sunny"), winners, abi.encode("correct"));
 
+        vm.warp(block.timestamp + oracle.disputeWindow() + 1);
+
         uint256 agent1BalBefore = agent1.balance;
         uint256 agent2BalBefore = agent2.balance;
 
@@ -483,6 +485,8 @@ contract NousOracleTest is Test {
 
         vm.prank(judge);
         oracle.aggregate(requestId, abi.encode("sunny consensus"), winners, abi.encode("two agreed"));
+
+        vm.warp(block.timestamp + oracle.disputeWindow() + 1);
 
         uint256 agent1Bal = agent1.balance;
         uint256 agent2Bal = agent2.balance;
@@ -535,6 +539,8 @@ contract NousOracleTest is Test {
         vm.prank(judge);
         oracle.aggregate(requestId, abi.encode("final"), winners, abi.encode("r"));
 
+        vm.warp(block.timestamp + oracle.disputeWindow() + 1);
+
         uint256 agent1TokenBal = token.balanceOf(agent1);
 
         oracle.distributeRewards(requestId);
@@ -576,14 +582,15 @@ contract NousOracleTest is Test {
             winners,
             abi.encode("Both agents provided consistent data, averaged wind speed")
         );
-        assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.Finalized));
+        assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.DisputeWindow));
 
         // 5. Check resolution
         (bytes memory finalAnswer, bool finalized) = oracle.getResolution(requestId);
-        assertTrue(finalized);
+        assertFalse(finalized);
         assertGt(finalAnswer.length, 0);
 
         // 6. Distribute rewards
+        vm.warp(block.timestamp + oracle.disputeWindow() + 1);
         oracle.distributeRewards(requestId);
         assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.Distributed));
     }
