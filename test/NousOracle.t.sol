@@ -119,6 +119,33 @@ contract NousOracleTest is Test {
         oracle.initiateDispute{value: disputeBondRequired}(requestId, "Disagree");
     }
 
+    function _driveToDAOEscalation(uint256 requestId) internal returns (address dao, MockERC20 taikoToken) {
+        dao = makeAddr("dao");
+        taikoToken = new MockERC20();
+
+        vm.startPrank(owner);
+        oracle.setDisputeWindow(1 hours);
+        oracle.setDisputeBondMultiplier(150);
+        oracle.setDaoAddress(dao);
+        oracle.setDaoEscalationBondToken(address(taikoToken));
+        oracle.setDaoEscalationBond(1 ether);
+        oracle.setDaoResolutionWindow(7 days);
+        vm.stopPrank();
+
+        _driveToDisputed(requestId);
+
+        address dJudge = oracle.disputeJudge(requestId);
+        vm.prank(dJudge);
+        oracle.resolveDispute(requestId, false, "", new address[](0));
+
+        address escalator = makeAddr("escalator");
+        taikoToken.mint(escalator, 10 ether);
+        vm.startPrank(escalator);
+        taikoToken.approve(address(oracle), 1 ether);
+        oracle.initiateDAOEscalation(requestId);
+        vm.stopPrank();
+    }
+
     // ============ Initialization Tests ============
 
     function test_initialize() public view {
@@ -1064,5 +1091,71 @@ contract NousOracleTest is Test {
         vm.expectRevert();
         oracle.initiateDAOEscalation(requestId);
         vm.stopPrank();
+    }
+
+    function test_resolveDAOEscalation_upheld() public {
+        uint256 requestId = _createDefaultRequest(2);
+        (address dao, MockERC20 taikoToken) = _driveToDAOEscalation(requestId);
+
+        address[] memory currentWinners = oracle.getWinners(requestId);
+        uint256 escalationBond = oracle.daoEscalationBondPaid(requestId);
+
+        uint256 winnersTokenBefore = taikoToken.balanceOf(currentWinners[0]);
+        uint256 requesterTokenBefore = taikoToken.balanceOf(requester);
+
+        vm.prank(dao);
+        oracle.resolveDAOEscalation(requestId, false, "", new address[](0));
+
+        assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.DisputeWindow));
+        assertLe(oracle.disputeWindowEnd(requestId), block.timestamp);
+
+        uint256 winnersShare = escalationBond / 2;
+        uint256 requesterShareExpected = escalationBond / 2;
+        assertEq(taikoToken.balanceOf(currentWinners[0]), winnersTokenBefore + winnersShare);
+        assertEq(taikoToken.balanceOf(requester), requesterTokenBefore + requesterShareExpected);
+    }
+
+    function test_resolveDAOEscalation_overturned() public {
+        uint256 requestId = _createDefaultRequest(2);
+        (address dao, MockERC20 taikoToken) = _driveToDAOEscalation(requestId);
+
+        address escalator = oracle.daoEscalator(requestId);
+        uint256 escalatorTokenBefore = taikoToken.balanceOf(escalator);
+        uint256 escalationBond = oracle.daoEscalationBondPaid(requestId);
+
+        address[] memory newWinners = new address[](1);
+        newWinners[0] = agent2;
+
+        vm.prank(dao);
+        oracle.resolveDAOEscalation(requestId, true, abi.encode("cloudy, DAO decision"), newWinners);
+
+        assertEq(taikoToken.balanceOf(escalator), escalatorTokenBefore + escalationBond);
+
+        address[] memory updated = oracle.getWinners(requestId);
+        assertEq(updated[0], agent2);
+
+        oracle.distributeRewards(requestId);
+        assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.Distributed));
+    }
+
+    function test_timeoutDAOEscalation() public {
+        uint256 requestId = _createDefaultRequest(2);
+        (address dao, MockERC20 taikoToken) = _driveToDAOEscalation(requestId);
+
+        address escalator = oracle.daoEscalator(requestId);
+        uint256 escalatorTokenBefore = taikoToken.balanceOf(escalator);
+        uint256 escalationBond = oracle.daoEscalationBondPaid(requestId);
+
+        vm.warp(block.timestamp + 7 days + 1);
+
+        oracle.timeoutDAOEscalation(requestId);
+
+        assertEq(taikoToken.balanceOf(escalator), escalatorTokenBefore + escalationBond);
+
+        assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.DisputeWindow));
+        assertLe(oracle.disputeWindowEnd(requestId), block.timestamp);
+
+        oracle.distributeRewards(requestId);
+        assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.Distributed));
     }
 }

@@ -619,6 +619,64 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable 
         emit DAOEscalationInitiated(requestId, msg.sender);
     }
 
+    /// @notice Resolve a DAO escalation. Called by the DAO address.
+    /// @param requestId The escalated request.
+    /// @param overturn True to overturn the current decision.
+    /// @param newAnswer New final answer (only used if overturn=true).
+    /// @param newWinners New winners (only used if overturn=true).
+    function resolveDAOEscalation(
+        uint256 requestId,
+        bool overturn,
+        bytes calldata newAnswer,
+        address[] calldata newWinners
+    ) external {
+        _requirePhase(requestId, Phase.DAOEscalation);
+        if (msg.sender != daoAddress) revert NotDAO(msg.sender);
+        if (block.timestamp > daoEscalationDeadline[requestId]) revert DAOResolutionTimedOut(requestId);
+
+        uint256 bondAmount = daoEscalationBondPaid[requestId];
+
+        if (overturn) {
+            if (newWinners.length == 0) revert NoWinners();
+            for (uint256 i; i < newWinners.length; ++i) {
+                if (!hasRevealed[requestId][newWinners[i]]) {
+                    revert WinnerNotRevealed(requestId, newWinners[i]);
+                }
+            }
+
+            IERC20(daoEscalationBondToken).safeTransfer(daoEscalator[requestId], bondAmount);
+
+            _finalAnswers[requestId] = newAnswer;
+            _winners[requestId] = newWinners;
+        } else {
+            Request storage req = _requests[requestId];
+            _distributeForfeitedBond(requestId, daoEscalationBondToken, bondAmount, req.requester);
+        }
+
+        phases[requestId] = Phase.DisputeWindow;
+        disputeWindowEnd[requestId] = block.timestamp;
+
+        emit DAOEscalationResolved(requestId, _finalAnswers[requestId]);
+    }
+
+    /// @notice Timeout a DAO escalation if the DAO fails to act.
+    ///         Anyone can call after the deadline passes.
+    /// @param requestId The escalated request.
+    function timeoutDAOEscalation(uint256 requestId) external {
+        _requirePhase(requestId, Phase.DAOEscalation);
+        if (block.timestamp <= daoEscalationDeadline[requestId]) revert DAODeadlineNotPassed(requestId);
+
+        IERC20(daoEscalationBondToken).safeTransfer(
+            daoEscalator[requestId],
+            daoEscalationBondPaid[requestId]
+        );
+
+        phases[requestId] = Phase.DisputeWindow;
+        disputeWindowEnd[requestId] = block.timestamp;
+
+        emit DAOEscalationTimedOut(requestId);
+    }
+
     // ============ View Functions ============
 
     /// @inheritdoc IAgentCouncilOracle
