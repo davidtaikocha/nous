@@ -989,4 +989,80 @@ contract NousOracleTest is Test {
         vm.expectRevert(abi.encodeWithSelector(NousOracle.NotDisputeJudge.selector, requestId, agent1));
         oracle.resolveDispute(requestId, false, "", new address[](0));
     }
+
+    // ============ Dispute: DAO Escalation Tests ============
+
+    function test_initiateDAOEscalation() public {
+        address dao = makeAddr("dao");
+        MockERC20 taikoToken = new MockERC20();
+
+        vm.startPrank(owner);
+        oracle.setDisputeWindow(1 hours);
+        oracle.setDisputeBondMultiplier(150);
+        oracle.setDaoAddress(dao);
+        oracle.setDaoEscalationBondToken(address(taikoToken));
+        oracle.setDaoEscalationBond(1 ether);
+        oracle.setDaoResolutionWindow(7 days);
+        vm.stopPrank();
+
+        uint256 requestId = _createDefaultRequest(2);
+        _driveToDisputed(requestId);
+
+        address dJudge = oracle.disputeJudge(requestId);
+        vm.prank(dJudge);
+        oracle.resolveDispute(requestId, false, "", new address[](0));
+
+        address escalator = makeAddr("escalator");
+        taikoToken.mint(escalator, 10 ether);
+
+        vm.startPrank(escalator);
+        taikoToken.approve(address(oracle), 1 ether);
+        oracle.initiateDAOEscalation(requestId);
+        vm.stopPrank();
+
+        assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.DAOEscalation));
+        assertTrue(oracle.daoEscalationUsed(requestId));
+        assertEq(oracle.daoEscalator(requestId), escalator);
+        assertEq(oracle.daoEscalationBondPaid(requestId), 1 ether);
+        assertGt(oracle.daoEscalationDeadline(requestId), block.timestamp);
+    }
+
+    function test_initiateDAOEscalation_revertsBeforeDispute() public {
+        address dao = makeAddr("dao");
+        MockERC20 taikoToken = new MockERC20();
+
+        vm.startPrank(owner);
+        oracle.setDisputeWindow(1 hours);
+        oracle.setDisputeBondMultiplier(150);
+        oracle.setDaoAddress(dao);
+        oracle.setDaoEscalationBondToken(address(taikoToken));
+        oracle.setDaoEscalationBond(1 ether);
+        vm.stopPrank();
+
+        uint256 requestId = _createDefaultRequest(2);
+
+        bytes memory a1 = abi.encode("sunny");
+        bytes memory a2 = abi.encode("cloudy");
+
+        _commitAgent(requestId, agent1, a1, 1);
+        _commitAgent(requestId, agent2, a2, 2);
+        _revealAgent(requestId, agent1, a1, 1);
+        _revealAgent(requestId, agent2, a2, 2);
+
+        address judge = oracle.selectedJudge(requestId);
+        address[] memory winners = new address[](1);
+        winners[0] = agent1;
+
+        vm.prank(judge);
+        oracle.aggregate(requestId, abi.encode("sunny"), winners, abi.encode("correct"));
+
+        address escalator = makeAddr("escalator");
+        taikoToken.mint(escalator, 10 ether);
+
+        vm.startPrank(escalator);
+        taikoToken.approve(address(oracle), 1 ether);
+        vm.expectRevert();
+        oracle.initiateDAOEscalation(requestId);
+        vm.stopPrank();
+    }
 }

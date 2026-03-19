@@ -598,6 +598,27 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable 
         emit DisputeWindowOpened(requestId, disputeWindowEnd[requestId]);
     }
 
+    /// @notice Escalate to DAO after dispute resolution.
+    /// @param requestId The request to escalate.
+    function initiateDAOEscalation(uint256 requestId) external {
+        _requirePhase(requestId, Phase.DisputeWindow);
+        if (block.timestamp >= disputeWindowEnd[requestId]) revert DisputeWindowNotOpen(requestId);
+        if (!disputeUsed[requestId]) revert DisputeRequired(requestId);
+        if (daoEscalationUsed[requestId]) revert DAOEscalationAlreadyUsed(requestId);
+        if (daoAddress == address(0)) revert DAONotSet();
+
+        IERC20(daoEscalationBondToken).safeTransferFrom(msg.sender, address(this), daoEscalationBond);
+
+        daoEscalator[requestId] = msg.sender;
+        daoEscalationBondPaid[requestId] = daoEscalationBond;
+        daoEscalationUsed[requestId] = true;
+        daoEscalationDeadline[requestId] = block.timestamp + daoResolutionWindow;
+
+        phases[requestId] = Phase.DAOEscalation;
+
+        emit DAOEscalationInitiated(requestId, msg.sender);
+    }
+
     // ============ View Functions ============
 
     /// @inheritdoc IAgentCouncilOracle
