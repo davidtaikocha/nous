@@ -521,6 +521,83 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable 
         emit RewardsDistributed(requestId, winnerList, amounts);
     }
 
+    // ============ Dispute Functions ============
+
+    /// @notice File a dispute against the judge's decision.
+    /// @param requestId The request to dispute.
+    /// @param reason On-chain reason or IPFS hash of detailed reasoning.
+    function initiateDispute(uint256 requestId, string calldata reason) external payable {
+        _requirePhase(requestId, Phase.DisputeWindow);
+        if (block.timestamp >= disputeWindowEnd[requestId]) revert DisputeWindowNotOpen(requestId);
+        if (disputeUsed[requestId]) revert DisputeAlreadyUsed(requestId);
+
+        Request storage req = _requests[requestId];
+        uint256 requiredBond = req.bondAmount * disputeBondMultiplier / 100;
+
+        if (req.bondToken == address(0)) {
+            if (msg.value < requiredBond) revert InsufficientDisputeBond(requiredBond, msg.value);
+            uint256 excess = msg.value - requiredBond;
+            if (excess > 0) {
+                (bool ok,) = msg.sender.call{value: excess}("");
+                if (!ok) revert TransferFailed();
+            }
+        } else {
+            if (msg.value > 0) revert ETHSentWithERC20Bond();
+            IERC20(req.bondToken).safeTransferFrom(msg.sender, address(this), requiredBond);
+        }
+
+        disputer[requestId] = msg.sender;
+        disputeBondPaid[requestId] = requiredBond;
+        disputeReason[requestId] = reason;
+        disputeUsed[requestId] = true;
+
+        _selectDisputeJudge(requestId);
+
+        phases[requestId] = Phase.Disputed;
+
+        emit DisputeInitiated(requestId, msg.sender, reason);
+    }
+
+    /// @notice Resolve a dispute. Called by the selected dispute judge.
+    /// @param requestId The disputed request.
+    /// @param overturn True to overturn the original decision.
+    /// @param newAnswer New final answer (only used if overturn=true).
+    /// @param newWinners New winners (only used if overturn=true).
+    function resolveDispute(
+        uint256 requestId,
+        bool overturn,
+        bytes calldata newAnswer,
+        address[] calldata newWinners
+    ) external {
+        _requirePhase(requestId, Phase.Disputed);
+        if (msg.sender != disputeJudge[requestId]) revert NotDisputeJudge(requestId, msg.sender);
+
+        Request storage req = _requests[requestId];
+        uint256 bondAmount = disputeBondPaid[requestId];
+
+        if (overturn) {
+            if (newWinners.length == 0) revert NoWinners();
+            for (uint256 i; i < newWinners.length; ++i) {
+                if (!hasRevealed[requestId][newWinners[i]]) {
+                    revert WinnerNotRevealed(requestId, newWinners[i]);
+                }
+            }
+
+            _transferToken(req.bondToken, disputer[requestId], bondAmount);
+
+            _finalAnswers[requestId] = newAnswer;
+            _winners[requestId] = newWinners;
+        } else {
+            _distributeForfeitedBond(requestId, req.bondToken, bondAmount, req.requester);
+        }
+
+        phases[requestId] = Phase.DisputeWindow;
+        disputeWindowEnd[requestId] = block.timestamp + disputeWindow;
+
+        emit DisputeResolved(requestId, overturn, _finalAnswers[requestId]);
+        emit DisputeWindowOpened(requestId, disputeWindowEnd[requestId]);
+    }
+
     // ============ View Functions ============
 
     /// @inheritdoc IAgentCouncilOracle
@@ -641,6 +718,64 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable 
         losers += nonRevealers;
 
         return losers * req.bondAmount;
+    }
+
+    /// @dev Transfer a token (ETH or ERC-20) to a recipient.
+    function _transferToken(address token_, address to, uint256 amount) internal {
+        if (amount == 0) return;
+        if (token_ == address(0)) {
+            (bool ok,) = to.call{value: amount}("");
+            if (!ok) revert TransferFailed();
+        } else {
+            IERC20(token_).safeTransfer(to, amount);
+        }
+    }
+
+    /// @dev Distribute a forfeited bond: 50% to current winners (split equally), 50% to requester.
+    function _distributeForfeitedBond(
+        uint256 requestId,
+        address token_,
+        uint256 bondAmount,
+        address requesterAddr
+    ) internal {
+        uint256 requesterShare = bondAmount / 2;
+        uint256 winnersTotal = bondAmount - requesterShare;
+        address[] storage winners = _winners[requestId];
+        uint256 numWinners = winners.length;
+
+        _transferToken(token_, requesterAddr, requesterShare);
+
+        if (numWinners > 0) {
+            uint256 perWinner = winnersTotal / numWinners;
+            for (uint256 i; i < numWinners; ++i) {
+                _transferToken(token_, winners[i], perWinner);
+            }
+        }
+    }
+
+    function _selectDisputeJudge(uint256 requestId) internal {
+        address originalJudge = selectedJudge[requestId];
+        uint256 judgeCount = _judgeList.length;
+
+        uint256 eligible = 0;
+        for (uint256 i; i < judgeCount; ++i) {
+            if (_judgeList[i] != originalJudge) eligible++;
+        }
+        if (eligible == 0) revert NoDisputeJudgeAvailable(requestId);
+
+        uint256 seed = uint256(keccak256(abi.encode(blockhash(block.number - 1), requestId, "dispute")));
+        uint256 pick = seed % eligible;
+
+        uint256 count = 0;
+        for (uint256 i; i < judgeCount; ++i) {
+            if (_judgeList[i] != originalJudge) {
+                if (count == pick) {
+                    disputeJudge[requestId] = _judgeList[i];
+                    return;
+                }
+                count++;
+            }
+        }
     }
 
     /// @notice UUPS authorization — only owner can upgrade.

@@ -95,6 +95,30 @@ contract NousOracleTest is Test {
         oracle.reveal(requestId, answer, nonce);
     }
 
+    function _driveToDisputed(uint256 requestId) internal returns (address originalJudge) {
+        bytes memory a1 = abi.encode("sunny");
+        bytes memory a2 = abi.encode("cloudy");
+
+        _commitAgent(requestId, agent1, a1, 1);
+        _commitAgent(requestId, agent2, a2, 2);
+        _revealAgent(requestId, agent1, a1, 1);
+        _revealAgent(requestId, agent2, a2, 2);
+
+        originalJudge = oracle.selectedJudge(requestId);
+        address[] memory winners = new address[](1);
+        winners[0] = agent1;
+
+        vm.prank(originalJudge);
+        oracle.aggregate(requestId, abi.encode("sunny"), winners, abi.encode("correct"));
+
+        uint256 disputeBondRequired = BOND * 150 / 100;
+        address disputerAddr = makeAddr("disputer");
+        vm.deal(disputerAddr, 1 ether);
+
+        vm.prank(disputerAddr);
+        oracle.initiateDispute{value: disputeBondRequired}(requestId, "Disagree");
+    }
+
     // ============ Initialization Tests ============
 
     function test_initialize() public view {
@@ -690,5 +714,279 @@ contract NousOracleTest is Test {
         vm.warp(block.timestamp + 1 hours + 1);
         oracle.distributeRewards(requestId);
         assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.Distributed));
+    }
+
+    // ============ Dispute: initiateDispute Tests ============
+
+    function test_initiateDispute() public {
+        vm.startPrank(owner);
+        oracle.setDisputeWindow(1 hours);
+        oracle.setDisputeBondMultiplier(150);
+        vm.stopPrank();
+
+        uint256 requestId = _createDefaultRequest(2);
+
+        bytes memory a1 = abi.encode("sunny");
+        bytes memory a2 = abi.encode("cloudy");
+
+        _commitAgent(requestId, agent1, a1, 1);
+        _commitAgent(requestId, agent2, a2, 2);
+        _revealAgent(requestId, agent1, a1, 1);
+        _revealAgent(requestId, agent2, a2, 2);
+
+        address judge = oracle.selectedJudge(requestId);
+        address[] memory winners = new address[](1);
+        winners[0] = agent1;
+
+        vm.prank(judge);
+        oracle.aggregate(requestId, abi.encode("sunny"), winners, abi.encode("correct"));
+
+        uint256 disputeBondRequired = BOND * 150 / 100;
+        address disputerAddr = makeAddr("disputer");
+        vm.deal(disputerAddr, 1 ether);
+
+        vm.prank(disputerAddr);
+        oracle.initiateDispute{value: disputeBondRequired}(requestId, "Judge was wrong");
+
+        assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.Disputed));
+        assertTrue(oracle.disputeUsed(requestId));
+        assertEq(oracle.disputer(requestId), disputerAddr);
+        assertEq(oracle.disputeBondPaid(requestId), disputeBondRequired);
+
+        address dJudge = oracle.disputeJudge(requestId);
+        assertTrue(dJudge != address(0));
+        assertTrue(dJudge != judge);
+    }
+
+    function test_initiateDispute_revertsAfterWindow() public {
+        vm.startPrank(owner);
+        oracle.setDisputeWindow(1 hours);
+        oracle.setDisputeBondMultiplier(150);
+        vm.stopPrank();
+
+        uint256 requestId = _createDefaultRequest(2);
+
+        bytes memory a1 = abi.encode("sunny");
+        bytes memory a2 = abi.encode("cloudy");
+
+        _commitAgent(requestId, agent1, a1, 1);
+        _commitAgent(requestId, agent2, a2, 2);
+        _revealAgent(requestId, agent1, a1, 1);
+        _revealAgent(requestId, agent2, a2, 2);
+
+        address judge = oracle.selectedJudge(requestId);
+        address[] memory winners = new address[](1);
+        winners[0] = agent1;
+
+        vm.prank(judge);
+        oracle.aggregate(requestId, abi.encode("sunny"), winners, abi.encode("correct"));
+
+        vm.warp(block.timestamp + 1 hours + 1);
+
+        uint256 disputeBondRequired = BOND * 150 / 100;
+        address disputerAddr = makeAddr("disputer");
+        vm.deal(disputerAddr, 1 ether);
+
+        vm.prank(disputerAddr);
+        vm.expectRevert(abi.encodeWithSelector(NousOracle.DisputeWindowNotOpen.selector, requestId));
+        oracle.initiateDispute{value: disputeBondRequired}(requestId, "Too late");
+    }
+
+    function test_initiateDispute_revertsIfAlreadyUsed() public {
+        vm.startPrank(owner);
+        oracle.setDisputeWindow(1 hours);
+        oracle.setDisputeBondMultiplier(150);
+        vm.stopPrank();
+
+        uint256 requestId = _createDefaultRequest(2);
+
+        bytes memory a1 = abi.encode("sunny");
+        bytes memory a2 = abi.encode("cloudy");
+
+        _commitAgent(requestId, agent1, a1, 1);
+        _commitAgent(requestId, agent2, a2, 2);
+        _revealAgent(requestId, agent1, a1, 1);
+        _revealAgent(requestId, agent2, a2, 2);
+
+        address judge = oracle.selectedJudge(requestId);
+        address[] memory winners = new address[](1);
+        winners[0] = agent1;
+
+        vm.prank(judge);
+        oracle.aggregate(requestId, abi.encode("sunny"), winners, abi.encode("correct"));
+
+        uint256 disputeBondRequired = BOND * 150 / 100;
+        address disputerAddr = makeAddr("disputer");
+        vm.deal(disputerAddr, 1 ether);
+
+        vm.prank(disputerAddr);
+        oracle.initiateDispute{value: disputeBondRequired}(requestId, "First dispute");
+
+        address disputer2 = makeAddr("disputer2");
+        vm.deal(disputer2, 1 ether);
+        vm.prank(disputer2);
+        vm.expectRevert();
+        oracle.initiateDispute{value: disputeBondRequired}(requestId, "Second dispute");
+    }
+
+    function test_initiateDispute_revertsIfNoOtherJudge() public {
+        vm.startPrank(owner);
+        oracle.removeJudge(judge2);
+        oracle.setDisputeWindow(1 hours);
+        oracle.setDisputeBondMultiplier(150);
+        vm.stopPrank();
+
+        uint256 requestId = _createDefaultRequest(2);
+
+        bytes memory a1 = abi.encode("sunny");
+        bytes memory a2 = abi.encode("cloudy");
+
+        _commitAgent(requestId, agent1, a1, 1);
+        _commitAgent(requestId, agent2, a2, 2);
+        _revealAgent(requestId, agent1, a1, 1);
+        _revealAgent(requestId, agent2, a2, 2);
+
+        address judge = oracle.selectedJudge(requestId);
+        address[] memory winners = new address[](1);
+        winners[0] = agent1;
+
+        vm.prank(judge);
+        oracle.aggregate(requestId, abi.encode("sunny"), winners, abi.encode("correct"));
+
+        uint256 disputeBondRequired = BOND * 150 / 100;
+        address disputerAddr = makeAddr("disputer");
+        vm.deal(disputerAddr, 1 ether);
+
+        vm.prank(disputerAddr);
+        vm.expectRevert(abi.encodeWithSelector(NousOracle.NoDisputeJudgeAvailable.selector, requestId));
+        oracle.initiateDispute{value: disputeBondRequired}(requestId, "No other judge");
+    }
+
+    function test_initiateDispute_revertsETHWithERC20Bond() public {
+        vm.startPrank(owner);
+        oracle.setDisputeWindow(1 hours);
+        oracle.setDisputeBondMultiplier(150);
+        vm.stopPrank();
+
+        token.mint(requester, 10 ether);
+        token.mint(agent1, 10 ether);
+        token.mint(agent2, 10 ether);
+
+        vm.prank(requester);
+        token.approve(address(oracle), REWARD);
+
+        vm.prank(agent1);
+        token.approve(address(oracle), BOND);
+        vm.prank(agent2);
+        token.approve(address(oracle), BOND);
+
+        vm.prank(requester);
+        uint256 requestId = oracle.createRequest(
+            "Test", 2, REWARD, BOND, block.timestamp + 1 hours,
+            address(token), address(token), "", _defaultCapabilities()
+        );
+
+        bytes memory a1 = abi.encode("sunny");
+        bytes memory a2 = abi.encode("cloudy");
+
+        bytes32 c1 = keccak256(abi.encode(a1, uint256(1)));
+        bytes32 c2 = keccak256(abi.encode(a2, uint256(2)));
+
+        vm.prank(agent1);
+        oracle.commit(requestId, c1);
+        vm.prank(agent2);
+        oracle.commit(requestId, c2);
+
+        vm.prank(agent1);
+        oracle.reveal(requestId, a1, 1);
+        vm.prank(agent2);
+        oracle.reveal(requestId, a2, 2);
+
+        address judge = oracle.selectedJudge(requestId);
+        address[] memory winners = new address[](1);
+        winners[0] = agent1;
+
+        vm.prank(judge);
+        oracle.aggregate(requestId, abi.encode("sunny"), winners, abi.encode("correct"));
+
+        address disputerAddr = makeAddr("disputer");
+        vm.deal(disputerAddr, 1 ether);
+
+        vm.prank(disputerAddr);
+        vm.expectRevert(NousOracle.ETHSentWithERC20Bond.selector);
+        oracle.initiateDispute{value: 0.15 ether}(requestId, "Wrong token");
+    }
+
+    // ============ Dispute: resolveDispute Tests ============
+
+    function test_resolveDispute_upheld() public {
+        vm.startPrank(owner);
+        oracle.setDisputeWindow(1 hours);
+        oracle.setDisputeBondMultiplier(150);
+        vm.stopPrank();
+
+        uint256 requestId = _createDefaultRequest(2);
+        _driveToDisputed(requestId);
+
+        address dJudge = oracle.disputeJudge(requestId);
+        uint256 agent1BalBefore = agent1.balance;
+        uint256 requesterBalBefore = requester.balance;
+        uint256 disputeBondAmount = oracle.disputeBondPaid(requestId);
+
+        vm.prank(dJudge);
+        oracle.resolveDispute(requestId, false, "", new address[](0));
+
+        assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.DisputeWindow));
+
+        uint256 winnersShare = disputeBondAmount / 2;
+        uint256 requesterShare = disputeBondAmount / 2;
+        assertEq(agent1.balance, agent1BalBefore + winnersShare);
+        assertEq(requester.balance, requesterBalBefore + requesterShare);
+    }
+
+    function test_resolveDispute_overturned() public {
+        vm.startPrank(owner);
+        oracle.setDisputeWindow(1 hours);
+        oracle.setDisputeBondMultiplier(150);
+        vm.stopPrank();
+
+        uint256 requestId = _createDefaultRequest(2);
+        _driveToDisputed(requestId);
+
+        address dJudge = oracle.disputeJudge(requestId);
+        address disputerAddr = oracle.disputer(requestId);
+        uint256 disputerBalBefore = disputerAddr.balance;
+        uint256 disputeBondAmount = oracle.disputeBondPaid(requestId);
+
+        address[] memory newWinners = new address[](1);
+        newWinners[0] = agent2;
+
+        vm.prank(dJudge);
+        oracle.resolveDispute(requestId, true, abi.encode("cloudy, revised"), newWinners);
+
+        assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.DisputeWindow));
+
+        assertEq(disputerAddr.balance, disputerBalBefore + disputeBondAmount);
+
+        address[] memory currentWinners = oracle.getWinners(requestId);
+        assertEq(currentWinners.length, 1);
+        assertEq(currentWinners[0], agent2);
+
+        (bytes memory finalAnswer,) = oracle.getResolution(requestId);
+        assertEq(finalAnswer, abi.encode("cloudy, revised"));
+    }
+
+    function test_resolveDispute_revertsIfNotDisputeJudge() public {
+        vm.startPrank(owner);
+        oracle.setDisputeWindow(1 hours);
+        oracle.setDisputeBondMultiplier(150);
+        vm.stopPrank();
+
+        uint256 requestId = _createDefaultRequest(2);
+        _driveToDisputed(requestId);
+
+        vm.prank(agent1);
+        vm.expectRevert(abi.encodeWithSelector(NousOracle.NotDisputeJudge.selector, requestId, agent1));
+        oracle.resolveDispute(requestId, false, "", new address[](0));
     }
 }
