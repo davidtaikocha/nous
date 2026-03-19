@@ -48,6 +48,14 @@
       --blue-500: #0052CC;
       --blue-700: #002966;
 
+      --orange-300: #F5A623;
+      --orange-400: #E8912D;
+      --orange-800: #3D2200;
+
+      --purple-300: #B07FFF;
+      --purple-400: #9B59FF;
+      --purple-800: #2A0066;
+
       /* Semantic tokens */
       --bg-primary: var(--grey-900);
       --bg-elevated: var(--grey-800);
@@ -552,6 +560,35 @@
     }
     .phase-badge.failed .phase-dot { background: var(--red-300); }
 
+    .phase-badge.dispute-window {
+      background: rgba(245, 166, 35, 0.12);
+      color: var(--orange-300);
+    }
+    .phase-badge.dispute-window .phase-dot {
+      background: var(--orange-300);
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+
+    .phase-badge.disputed {
+      background: rgba(245, 166, 35, 0.16);
+      color: var(--orange-300);
+      border: 1px solid rgba(245, 166, 35, 0.25);
+    }
+    .phase-badge.disputed .phase-dot {
+      background: var(--orange-300);
+      animation: pulse-dot 1.5s ease-in-out infinite;
+    }
+
+    .phase-badge.dao-escalation {
+      background: rgba(176, 127, 255, 0.12);
+      color: var(--purple-300);
+      border: 1px solid rgba(176, 127, 255, 0.2);
+    }
+    .phase-badge.dao-escalation .phase-dot {
+      background: var(--purple-300);
+      animation: pulse-dot 1.5s ease-in-out infinite;
+    }
+
     .request-card-body { padding: 20px; }
 
     .request-query {
@@ -983,6 +1020,194 @@
       color: var(--red-300);
     }
 
+    /* Dispute info section */
+    .dispute-info-section {
+      margin-top: 16px;
+      padding: 16px;
+      background: rgba(245, 166, 35, 0.04);
+      border: 1px solid rgba(245, 166, 35, 0.15);
+      border-radius: var(--radius);
+      position: relative;
+    }
+
+    .dispute-info-section::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: var(--orange-300);
+      border-radius: 3px 0 0 3px;
+    }
+
+    .dispute-info-label {
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--orange-300);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dispute-info-label svg {
+      width: 14px;
+      height: 14px;
+      stroke: var(--orange-300);
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .dispute-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .dispute-meta-item {
+      background: rgba(245, 166, 35, 0.05);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+
+    .dispute-meta-item .meta-label {
+      color: rgba(245, 166, 35, 0.6);
+    }
+
+    .dispute-reason {
+      font-size: 0.82rem;
+      line-height: 1.5;
+      color: var(--text-secondary);
+      font-style: italic;
+      padding: 10px 12px;
+      background: rgba(245, 166, 35, 0.03);
+      border-radius: 8px;
+      border-left: 2px solid rgba(245, 166, 35, 0.3);
+    }
+
+    .dispute-status-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+
+    .dispute-status-chip.waiting {
+      background: rgba(245, 166, 35, 0.1);
+      color: var(--orange-300);
+      border: 1px solid rgba(245, 166, 35, 0.2);
+    }
+
+    .dispute-status-chip.upheld {
+      background: rgba(71, 224, 160, 0.1);
+      color: var(--green-300);
+      border: 1px solid rgba(71, 224, 160, 0.2);
+    }
+
+    .dispute-status-chip.overturned {
+      background: rgba(241, 92, 93, 0.1);
+      color: var(--red-300);
+      border: 1px solid rgba(241, 92, 93, 0.2);
+    }
+
+    /* DAO escalation section */
+    .dao-info-section {
+      margin-top: 16px;
+      padding: 16px;
+      background: rgba(176, 127, 255, 0.04);
+      border: 1px solid rgba(176, 127, 255, 0.15);
+      border-radius: var(--radius);
+      position: relative;
+    }
+
+    .dao-info-section::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: var(--purple-300);
+      border-radius: 3px 0 0 3px;
+    }
+
+    .dao-info-label {
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--purple-300);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dao-info-label svg {
+      width: 14px;
+      height: 14px;
+      stroke: var(--purple-300);
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .dao-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
+    }
+
+    .dao-meta-item {
+      background: rgba(176, 127, 255, 0.05);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+
+    .dao-meta-item .meta-label {
+      color: rgba(176, 127, 255, 0.6);
+    }
+
+    /* Dispute window countdown */
+    .dispute-window-bar {
+      margin-top: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .dispute-window-bar .bar-track {
+      flex: 1;
+      height: 4px;
+      background: var(--bg-primary);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .dispute-window-bar .bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      background: linear-gradient(90deg, var(--orange-300), var(--orange-400));
+      transition: width 0.4s ease;
+    }
+
+    .dispute-window-bar .bar-label {
+      font-size: 0.7rem;
+      color: var(--orange-300);
+      white-space: nowrap;
+    }
+
     /* Empty state */
     .empty-state {
       text-align: center;
@@ -1412,6 +1637,13 @@
           <span class="phase-label">Judge</span>
         </div>
         <div class="phase-connector"></div>
+        <div class="phase-node" data-phase="dispute window">
+          <div class="phase-ring">
+            <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+          <span class="phase-label">Dispute</span>
+        </div>
+        <div class="phase-connector"></div>
         <div class="phase-node" data-phase="distributed">
           <div class="phase-ring">
             <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
@@ -1449,8 +1681,18 @@
         </div>
         <div class="step-card">
           <div class="step-number">05</div>
+          <div class="step-title">Dispute</div>
+          <div class="step-desc">Anyone can challenge the judge's decision by posting a 1.5x bond during the dispute window.</div>
+        </div>
+        <div class="step-card">
+          <div class="step-number">06</div>
+          <div class="step-title">DAO Escalation</div>
+          <div class="step-desc">If still contested after dispute, escalate to DAO governance as the final backstop.</div>
+        </div>
+        <div class="step-card">
+          <div class="step-number">07</div>
           <div class="step-title">Distribute</div>
-          <div class="step-desc">Winners receive rewards plus losers' slashed bonds.</div>
+          <div class="step-desc">Winners receive rewards plus losers' slashed bonds. Forfeited dispute bonds split 50/50.</div>
         </div>
       </div>
     </div>
@@ -1581,6 +1823,18 @@
       'function getReasoning(uint256) view returns (bytes)',
       'function getWinners(uint256) view returns (address[])',
       'function createRequest(string query, uint256 numInfoAgents, uint256 rewardAmount, uint256 bondAmount, uint256 deadline, address rewardToken, address bondToken, string specifications, tuple(string[] capabilities, string[] domains) requiredCapabilities) payable returns (uint256)',
+      'function disputeWindowEnd(uint256) view returns (uint256)',
+      'function disputeUsed(uint256) view returns (bool)',
+      'function disputer(uint256) view returns (address)',
+      'function disputeBondPaid(uint256) view returns (uint256)',
+      'function disputeReason(uint256) view returns (string)',
+      'function disputeJudge(uint256) view returns (address)',
+      'function daoEscalationUsed(uint256) view returns (bool)',
+      'function daoEscalator(uint256) view returns (address)',
+      'function daoEscalationBondPaid(uint256) view returns (uint256)',
+      'function daoEscalationDeadline(uint256) view returns (uint256)',
+      'function disputeWindow() view returns (uint256)',
+      'function disputeBondMultiplier() view returns (uint256)',
     ];
 
     const TAIKO_TOKEN = '0x557f5b2b222f1f59f94682df01d35dd11f37939a';
@@ -2045,6 +2299,90 @@
       return div.innerHTML;
     }
 
+    function renderDisputeInfo(r) {
+      const d = r.disputeInfo;
+      if (!d) return '';
+
+      let html = '';
+
+      // Show dispute window countdown for dispute window phase
+      if (r.phase === 'dispute window' && d.windowEnd > 0n) {
+        const remaining = timeRemaining(d.windowEnd);
+        const isExpired = remaining === 'Expired';
+        html += `
+          <div class="dispute-info-section">
+            <div class="dispute-info-label">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              ${d.disputeUsed ? 'DAO Escalation Window' : 'Dispute Window'}
+            </div>
+            <div class="dispute-window-bar">
+              <span class="bar-label" style="width: 70px;">${isExpired ? 'Expired' : 'Closes in'}</span>
+              <div class="bar-track">
+                <div class="bar-fill" style="width: ${isExpired ? '0' : '60'}%; background: linear-gradient(90deg, var(--orange-300), var(--orange-400));"></div>
+              </div>
+              <span class="bar-label">${isExpired ? 'Ready to distribute' : remaining}</span>
+            </div>
+          </div>`;
+      }
+
+      // Show active dispute info
+      if (d.disputeUsed && d.disputer && d.disputer !== ethers.ZeroAddress) {
+        const bondSymbol = getTokenSymbol(r.request.bondToken);
+        html += `
+          <div class="dispute-info-section">
+            <div class="dispute-info-label">
+              <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              Dispute Filed
+            </div>
+            <div class="dispute-meta-grid">
+              <div class="dispute-meta-item">
+                <div class="meta-label">Disputer</div>
+                <div class="meta-value mono">${shortAddr(d.disputer)}</div>
+              </div>
+              <div class="dispute-meta-item">
+                <div class="meta-label">Bond</div>
+                <div class="meta-value">${formatTokenAmount(d.disputeBond, bondSymbol)}</div>
+              </div>
+              ${d.disputeJudge && d.disputeJudge !== ethers.ZeroAddress ? `
+              <div class="dispute-meta-item">
+                <div class="meta-label">Dispute Judge</div>
+                <div class="meta-value mono">${shortAddr(d.disputeJudge)}</div>
+              </div>` : ''}
+            </div>
+            ${d.reason ? `<div class="dispute-reason">"${escapeHtml(d.reason)}"</div>` : ''}
+          </div>`;
+      }
+
+      // Show DAO escalation info
+      if (d.daoUsed && d.daoEscalator && d.daoEscalator !== ethers.ZeroAddress) {
+        const daoRemaining = d.daoDeadline > 0n ? timeRemaining(d.daoDeadline) : '';
+        html += `
+          <div class="dao-info-section">
+            <div class="dao-info-label">
+              <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+              DAO Escalation
+            </div>
+            <div class="dao-meta-grid">
+              <div class="dao-meta-item">
+                <div class="meta-label">Escalator</div>
+                <div class="meta-value mono">${shortAddr(d.daoEscalator)}</div>
+              </div>
+              <div class="dao-meta-item">
+                <div class="meta-label">Bond</div>
+                <div class="meta-value">${formatTokenAmount(d.daoBond, 'TAIKO')}</div>
+              </div>
+              ${r.phase === 'dao escalation' && daoRemaining ? `
+              <div class="dao-meta-item">
+                <div class="meta-label">DAO Deadline</div>
+                <div class="meta-value">${daoRemaining}</div>
+              </div>` : ''}
+            </div>
+          </div>`;
+      }
+
+      return html;
+    }
+
     async function fetchAllRequests() {
       const nextId = await oracle.nextRequestId();
       const requests = [];
@@ -2072,6 +2410,39 @@
           } catch {}
         }
 
+        // Fetch dispute info for relevant phases
+        let disputeInfo = null;
+        if (phase === 'dispute window' || phase === 'disputed' || phase === 'dao escalation' || phase === 'distributed') {
+          try {
+            const [dwEnd, dUsed, dAddr, dBond, dReason, dJudge, daoUsed, daoAddr, daoBond, daoDeadline] = await Promise.all([
+              oracle.disputeWindowEnd(id),
+              oracle.disputeUsed(id),
+              oracle.disputer(id),
+              oracle.disputeBondPaid(id),
+              oracle.disputeReason(id),
+              oracle.disputeJudge(id),
+              oracle.daoEscalationUsed(id),
+              oracle.daoEscalator(id),
+              oracle.daoEscalationBondPaid(id),
+              oracle.daoEscalationDeadline(id),
+            ]);
+            disputeInfo = {
+              windowEnd: dwEnd,
+              disputeUsed: dUsed,
+              disputer: dAddr,
+              disputeBond: dBond,
+              reason: dReason,
+              disputeJudge: dJudge,
+              daoUsed: daoUsed,
+              daoEscalator: daoAddr,
+              daoBond: daoBond,
+              daoDeadline: daoDeadline,
+            };
+          } catch (e) {
+            console.warn('Could not fetch dispute info for request', id.toString(), e);
+          }
+        }
+
         requests.push({
           id,
           phase,
@@ -2086,6 +2457,7 @@
           revealDeadline,
           reasoning,
           winners,
+          disputeInfo,
         });
       }
 
@@ -2093,9 +2465,11 @@
     }
 
     function renderPipeline(requests) {
-      // Find the "most advanced" active phase across all requests
       let highestPhase = 'none';
-      const phaseOrder = { none: 0, committing: 1, revealing: 2, judging: 3, finalized: 4, distributed: 5 };
+      const phaseOrder = {
+        none: 0, committing: 1, revealing: 2, judging: 3, finalized: 4,
+        'dispute window': 5, disputed: 5, 'dao escalation': 5, distributed: 6
+      };
 
       for (const r of requests) {
         if (r.phase !== 'failed' && (phaseOrder[r.phase] || 0) > (phaseOrder[highestPhase] || 0)) {
@@ -2103,12 +2477,13 @@
         }
       }
 
-      const pipelinePhases = ['committing', 'committing', 'revealing', 'judging', 'distributed'];
+      // Pipeline: Request(0), Commit(1), Reveal(2), Judge(3), Dispute(4), Distribute(5)
       const nodes = document.querySelectorAll('.phase-node');
       const connectors = document.querySelectorAll('.phase-connector');
 
       const currentIndex = {
-        none: -1, committing: 1, revealing: 2, judging: 3, finalized: 4, distributed: 4
+        none: -1, committing: 1, revealing: 2, judging: 3, finalized: 4,
+        'dispute window': 4, disputed: 4, 'dao escalation': 4, distributed: 5
       }[highestPhase] ?? -1;
 
       nodes.forEach((node, i) => {
@@ -2137,6 +2512,8 @@
         committed: r.committedAgents.length,
         revealed: r.revealedAgents.length,
         finalized: r.finalized,
+        disputeUsed: r.disputeInfo?.disputeUsed,
+        daoUsed: r.disputeInfo?.daoUsed,
       })));
 
       if (currentHash === lastRequestsHash) return;
@@ -2227,7 +2604,10 @@
         }
 
         let finalHtml = '';
-        if (r.finalized && r.finalAnswer && r.finalAnswer !== '0x') {
+        const showFinalAnswer = r.finalAnswer && r.finalAnswer !== '0x' && (
+          r.finalized || r.phase === 'dispute window' || r.phase === 'disputed' || r.phase === 'dao escalation'
+        );
+        if (showFinalAnswer) {
           const decoded = await tryDecodeHex(r.finalAnswer);
           const text = decoded?.text || decoded?.answer || decoded || 'Unable to decode';
           const finalCid = decoded?._cid || null;
@@ -2282,7 +2662,7 @@
           <div class="request-card${newRequestIds.has(r.id.toString()) ? ' fade-in' : ''}" style="${newRequestIds.has(r.id.toString()) ? `animation-delay: ${idx * 60}ms;` : ''}">
             <div class="request-card-header">
               <span class="request-id">Request #${r.id.toString()}</span>
-              <span class="phase-badge ${r.phase}">
+              <span class="phase-badge ${r.phase.replace(/\s+/g, '-')}">
                 <span class="phase-dot"></span>
                 ${r.phase}
               </span>
@@ -2338,6 +2718,7 @@
 
               ${answersHtml}
               ${finalHtml}
+              ${renderDisputeInfo(r)}
               ${rewardHtml}
             </div>
           </div>`;
