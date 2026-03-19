@@ -624,4 +624,64 @@ contract NousOracleTest is Test {
         bytes memory storedReasoning = oracle.getReasoning(requestId);
         assertEq(storedReasoning, reasoning);
     }
+
+    // ============ Dispute: Modified Existing Behavior ============
+
+    function test_aggregate_transitionsToDisputeWindow() public {
+        vm.startPrank(owner);
+        oracle.setDisputeWindow(1 hours);
+        oracle.setDisputeBondMultiplier(150);
+        vm.stopPrank();
+
+        uint256 requestId = _createDefaultRequest(2);
+
+        bytes memory a1 = abi.encode("sunny");
+        bytes memory a2 = abi.encode("cloudy");
+
+        _commitAgent(requestId, agent1, a1, 1);
+        _commitAgent(requestId, agent2, a2, 2);
+        _revealAgent(requestId, agent1, a1, 1);
+        _revealAgent(requestId, agent2, a2, 2);
+
+        address judge = oracle.selectedJudge(requestId);
+        address[] memory winners = new address[](1);
+        winners[0] = agent1;
+
+        vm.prank(judge);
+        oracle.aggregate(requestId, abi.encode("sunny, final"), winners, abi.encode("agent1 was more accurate"));
+
+        assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.DisputeWindow));
+        assertGt(oracle.disputeWindowEnd(requestId), block.timestamp);
+    }
+
+    function test_distributeRewards_requiresDisputeWindowExpired() public {
+        vm.startPrank(owner);
+        oracle.setDisputeWindow(1 hours);
+        oracle.setDisputeBondMultiplier(150);
+        vm.stopPrank();
+
+        uint256 requestId = _createDefaultRequest(2);
+
+        bytes memory a1 = abi.encode("sunny");
+        bytes memory a2 = abi.encode("cloudy");
+
+        _commitAgent(requestId, agent1, a1, 1);
+        _commitAgent(requestId, agent2, a2, 2);
+        _revealAgent(requestId, agent1, a1, 1);
+        _revealAgent(requestId, agent2, a2, 2);
+
+        address judge = oracle.selectedJudge(requestId);
+        address[] memory winners = new address[](1);
+        winners[0] = agent1;
+
+        vm.prank(judge);
+        oracle.aggregate(requestId, abi.encode("sunny"), winners, abi.encode("correct"));
+
+        vm.expectRevert(abi.encodeWithSelector(NousOracle.DisputeWindowNotExpired.selector, requestId));
+        oracle.distributeRewards(requestId);
+
+        vm.warp(block.timestamp + 1 hours + 1);
+        oracle.distributeRewards(requestId);
+        assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.Distributed));
+    }
 }

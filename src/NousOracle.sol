@@ -461,23 +461,32 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable 
         _finalAnswers[requestId] = finalAnswer;
         _reasoning[requestId] = reasoning;
         _winners[requestId] = winners;
-        phases[requestId] = Phase.Finalized;
+        phases[requestId] = Phase.DisputeWindow;
+        disputeWindowEnd[requestId] = block.timestamp + disputeWindow;
 
         emit ResolutionFinalized(requestId, finalAnswer);
+        emit DisputeWindowOpened(requestId, disputeWindowEnd[requestId]);
     }
 
     /// @inheritdoc IAgentCouncilOracle
     function distributeRewards(uint256 requestId) external {
-        _requirePhase(requestId, Phase.Finalized);
+        Phase phase = phases[requestId];
+
+        if (phase == Phase.DisputeWindow) {
+            if (block.timestamp < disputeWindowEnd[requestId]) {
+                revert DisputeWindowNotExpired(requestId);
+            }
+        } else if (phase == Phase.Finalized) {
+            // Legacy path: pre-upgrade requests can distribute immediately
+        } else {
+            revert InvalidPhase(requestId, Phase.DisputeWindow, phase);
+        }
 
         Request storage req = _requests[requestId];
         address[] storage winners = _winners[requestId];
         uint256 numWinners = winners.length;
 
-        // Calculate per-winner reward share
         uint256 rewardPerWinner = req.rewardAmount / numWinners;
-
-        // Calculate slashed bonds from losers
         uint256 totalSlashed = _calculateSlashedBonds(requestId);
         uint256 slashPerWinner = numWinners > 0 ? totalSlashed / numWinners : 0;
 
@@ -488,7 +497,6 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable 
             address winner = winners[i];
             winnerList[i] = winner;
 
-            // Transfer reward share
             uint256 totalPayout = rewardPerWinner;
             if (req.rewardToken == address(0)) {
                 (bool ok,) = winner.call{value: rewardPerWinner}("");
@@ -497,7 +505,6 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable 
                 IERC20(req.rewardToken).safeTransfer(winner, rewardPerWinner);
             }
 
-            // Return winner's bond + their share of slashed bonds
             uint256 bondPayout = req.bondAmount + slashPerWinner;
             totalPayout += bondPayout;
             if (req.bondToken == address(0)) {
@@ -511,7 +518,6 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable 
         }
 
         phases[requestId] = Phase.Distributed;
-
         emit RewardsDistributed(requestId, winnerList, amounts);
     }
 
@@ -520,7 +526,7 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable 
     /// @inheritdoc IAgentCouncilOracle
     function getResolution(uint256 requestId) external view returns (bytes memory finalAnswer, bool finalized) {
         Phase phase = phases[requestId];
-        finalized = phase == Phase.Finalized || phase == Phase.Distributed;
+        finalized = phase == Phase.Distributed;
         finalAnswer = _finalAnswers[requestId];
     }
 
