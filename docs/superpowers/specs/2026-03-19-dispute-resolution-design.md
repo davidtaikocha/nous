@@ -47,17 +47,17 @@ enum Phase {
 ### Transitions
 
 ```
-Judging ──(aggregate)──→ DisputeWindow ──(window expires, no dispute)──→ Distributed
+Judging ──(aggregate)──→ DisputeWindow₁ ──(window expires, no dispute)──→ Distributed
                               │
-                              ├──(dispute filed)──→ Disputed
-                              │                        │
-                              │                   (judge resolves)
-                              │                        │
-                              │                   DisputeWindow ──(window expires, no escalation)──→ Distributed
-                              │                        │
-                              │                   (DAO escalation filed)
-                              │                        │
-                              │                   DAOEscalation ──(DAO rules or timeout)──→ Distributed
+                              └──(dispute filed)──→ Disputed
+                                                       │
+                                                  (judge resolves)
+                                                       │
+                                                  DisputeWindow₂ ──(window expires, no escalation)──→ Distributed
+                                                       │
+                                                  (DAO escalation filed)
+                                                       │
+                                                  DAOEscalation ──(DAO rules or timeout)──→ Distributed
 ```
 
 - `aggregate()` transitions to `DisputeWindow` (not `Finalized`)
@@ -255,7 +255,9 @@ Called by anyone if the DAO fails to act within `daoResolutionWindow`.
 
 ### Modified `distributeRewards()`
 
-- Guard changes: requires `DisputeWindow` phase AND `block.timestamp >= disputeWindowEnd[requestId]`
+- Accepts **two** phases for backward compatibility with pre-upgrade requests:
+  - `Finalized` (4): legacy path — distribute immediately, no dispute window check (these requests were finalized under the old rules before the upgrade)
+  - `DisputeWindow` (7): new path — requires `block.timestamp >= disputeWindowEnd[requestId]`
 - Reward calculation logic unchanged — reads from `_winners` (which may have been updated by dispute/DAO)
 - Transitions to `Distributed`
 
@@ -285,7 +287,7 @@ No judge slashing in this implementation (hackathon scope).
 
 - **`Phase` enum:** Three new values appended: `DisputeWindow` (7), `Disputed` (8), `DAOEscalation` (9). Existing values `Distributed` (5) and `Failed` (6) unchanged — preserves UUPS storage compatibility.
 - **`aggregate()`:** Transitions to `DisputeWindow` instead of `Finalized`. Sets `disputeWindowEnd`.
-- **`distributeRewards()`:** Guard changes to require `DisputeWindow` phase AND `block.timestamp >= disputeWindowEnd[requestId]`.
+- **`distributeRewards()`:** Accepts both `Finalized` (legacy, immediate) and `DisputeWindow` (new, requires expired window). This ensures pre-upgrade requests in `Finalized` phase are not bricked.
 - **`getResolution()`:** Returns `finalized = true` only when phase is `Distributed`. During `DisputeWindow`/`Disputed`/`DAOEscalation`, the answer exists but is still contestable, so `finalized` remains `false`. This keeps the ERC-8033 interface semantically correct — consumers can trust that `finalized = true` means the answer will not change.
 
 ### Existing Tests
