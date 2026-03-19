@@ -77,6 +77,56 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable 
     /// @notice Reveal phase deadline per request.
     mapping(uint256 => uint256) public revealDeadlines;
 
+    // ============ Dispute Storage ============
+
+    /// @notice Duration of the dispute window in seconds.
+    uint256 public disputeWindow;
+
+    /// @notice Multiplier for dispute bond (e.g., 150 = 1.5x original bond). Minimum 100.
+    uint256 public disputeBondMultiplier;
+
+    /// @notice Flat bond amount for DAO escalation (in daoEscalationBondToken).
+    uint256 public daoEscalationBond;
+
+    /// @notice ERC-20 token used for DAO escalation bonds (Taiko token).
+    address public daoEscalationBondToken;
+
+    /// @notice Address authorized to resolve DAO escalations.
+    address public daoAddress;
+
+    /// @notice Maximum time for DAO to act on an escalation.
+    uint256 public daoResolutionWindow;
+
+    /// @notice Timestamp when the dispute window ends per request.
+    mapping(uint256 => uint256) public disputeWindowEnd;
+
+    /// @notice Whether the single dispute has been used for a request.
+    mapping(uint256 => bool) public disputeUsed;
+
+    /// @notice Address that filed the dispute for a request.
+    mapping(uint256 => address) public disputer;
+
+    /// @notice Actual bond paid by the disputer.
+    mapping(uint256 => uint256) public disputeBondPaid;
+
+    /// @notice On-chain reason or IPFS hash for the dispute.
+    mapping(uint256 => string) public disputeReason;
+
+    /// @notice Selected judge for the dispute.
+    mapping(uint256 => address) public disputeJudge;
+
+    /// @notice Whether DAO escalation has been used for a request.
+    mapping(uint256 => bool) public daoEscalationUsed;
+
+    /// @notice Address that filed the DAO escalation.
+    mapping(uint256 => address) public daoEscalator;
+
+    /// @notice Actual bond paid for DAO escalation.
+    mapping(uint256 => uint256) public daoEscalationBondPaid;
+
+    /// @notice Deadline for DAO to act on an escalation.
+    mapping(uint256 => uint256) public daoEscalationDeadline;
+
     // ============ Errors ============
 
     error InvalidPhase(uint256 requestId, Phase expected, Phase actual);
@@ -175,6 +225,52 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable 
     /// @notice Get all approved judges.
     function getJudges() external view returns (address[] memory) {
         return _judgeList;
+    }
+
+    // ============ Dispute Configuration ============
+
+    /// @notice Set the dispute window duration.
+    function setDisputeWindow(uint256 duration) external onlyOwner {
+        uint256 old = disputeWindow;
+        disputeWindow = duration;
+        emit DisputeWindowUpdated(old, duration);
+    }
+
+    /// @notice Set the dispute bond multiplier (minimum 100 = 1x).
+    function setDisputeBondMultiplier(uint256 multiplier) external onlyOwner {
+        if (multiplier < 100) revert DisputeBondMultiplierTooLow(multiplier);
+        uint256 old = disputeBondMultiplier;
+        disputeBondMultiplier = multiplier;
+        emit DisputeBondMultiplierUpdated(old, multiplier);
+    }
+
+    /// @notice Set the flat DAO escalation bond amount.
+    function setDaoEscalationBond(uint256 amount) external onlyOwner {
+        uint256 old = daoEscalationBond;
+        daoEscalationBond = amount;
+        emit DaoEscalationBondUpdated(old, amount);
+    }
+
+    /// @notice Set the ERC-20 token for DAO escalation bonds.
+    function setDaoEscalationBondToken(address token_) external onlyOwner {
+        if (token_ == address(0)) revert InvalidBondTokenAddress();
+        address old = daoEscalationBondToken;
+        daoEscalationBondToken = token_;
+        emit DaoEscalationBondTokenUpdated(old, token_);
+    }
+
+    /// @notice Set the DAO address for escalation resolution.
+    function setDaoAddress(address dao) external onlyOwner {
+        address old = daoAddress;
+        daoAddress = dao;
+        emit DaoAddressUpdated(old, dao);
+    }
+
+    /// @notice Set the maximum time for DAO to resolve an escalation.
+    function setDaoResolutionWindow(uint256 duration) external onlyOwner {
+        uint256 old = daoResolutionWindow;
+        daoResolutionWindow = duration;
+        emit DaoResolutionWindowUpdated(old, duration);
     }
 
     // ============ Core Functions ============
