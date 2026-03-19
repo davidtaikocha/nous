@@ -17,13 +17,16 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable 
     // ============ Enums ============
 
     enum Phase {
-        None,
-        Committing,
-        Revealing,
-        Judging,
-        Finalized,
-        Distributed,
-        Failed
+        None,           // 0
+        Committing,     // 1
+        Revealing,      // 2
+        Judging,        // 3
+        Finalized,      // 4  (legacy — kept for UUPS compat, no longer entered post-upgrade)
+        Distributed,    // 5
+        Failed,         // 6
+        DisputeWindow,  // 7
+        Disputed,       // 8
+        DAOEscalation   // 9
     }
 
     // ============ Storage ============
@@ -93,6 +96,40 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable 
     error NoJudgesAvailable();
     error NoWinners();
     error TransferFailed();
+
+    // ============ Dispute Events ============
+
+    event DisputeInitiated(uint256 indexed requestId, address disputer, string reason);
+    event DisputeWindowOpened(uint256 indexed requestId, uint256 endTimestamp);
+    event DisputeResolved(uint256 indexed requestId, bool overturned, bytes finalAnswer);
+    event DAOEscalationInitiated(uint256 indexed requestId, address escalator);
+    event DAOEscalationResolved(uint256 indexed requestId, bytes finalAnswer);
+    event DAOEscalationTimedOut(uint256 indexed requestId);
+
+    event DisputeWindowUpdated(uint256 oldDuration, uint256 newDuration);
+    event DisputeBondMultiplierUpdated(uint256 oldMultiplier, uint256 newMultiplier);
+    event DaoEscalationBondUpdated(uint256 oldAmount, uint256 newAmount);
+    event DaoEscalationBondTokenUpdated(address oldToken, address newToken);
+    event DaoAddressUpdated(address oldDao, address newDao);
+    event DaoResolutionWindowUpdated(uint256 oldDuration, uint256 newDuration);
+
+    // ============ Dispute Errors ============
+
+    error DisputeWindowNotOpen(uint256 requestId);
+    error DisputeWindowNotExpired(uint256 requestId);
+    error DisputeAlreadyUsed(uint256 requestId);
+    error DisputeRequired(uint256 requestId);
+    error InsufficientDisputeBond(uint256 required, uint256 provided);
+    error NotDisputeJudge(uint256 requestId, address caller);
+    error NoDisputeJudgeAvailable(uint256 requestId);
+    error DAOEscalationAlreadyUsed(uint256 requestId);
+    error DAONotSet();
+    error NotDAO(address caller);
+    error DAODeadlineNotPassed(uint256 requestId);
+    error DAOResolutionTimedOut(uint256 requestId);
+    error DisputeBondMultiplierTooLow(uint256 multiplier);
+    error InvalidBondTokenAddress();
+    error ETHSentWithERC20Bond();
 
     // ============ Initializer ============
 
