@@ -27,41 +27,45 @@ Adds a two-tier post-finalization challenge mechanism to NousOracle: a single au
 
 ### Updated Enum
 
+New phases are **appended** after the existing enum values to preserve UUPS storage compatibility. Existing requests stored as `Distributed` (5) or `Failed` (6) retain their correct meaning.
+
 ```solidity
 enum Phase {
-    None,           // 0
-    Committing,     // 1
-    Revealing,      // 2
-    Judging,        // 3
-    Finalized,      // 4  (retained for storage compatibility, not entered in normal flow)
-    DisputeWindow,  // 5
-    Disputed,       // 6
-    DAOEscalation,  // 7
-    Distributed,    // 8
-    Failed          // 9
+    None,           // 0  (unchanged)
+    Committing,     // 1  (unchanged)
+    Revealing,      // 2  (unchanged)
+    Judging,        // 3  (unchanged)
+    Finalized,      // 4  (unchanged, no longer entered in normal flow post-upgrade)
+    Distributed,    // 5  (unchanged)
+    Failed,         // 6  (unchanged)
+    DisputeWindow,  // 7  (new)
+    Disputed,       // 8  (new)
+    DAOEscalation   // 9  (new)
 }
 ```
 
 ### Transitions
 
 ```
-Judging → DisputeWindow ──(window expires, no dispute)──→ Distributed
-               │
-               ├──(dispute filed)──→ Disputed
-               │                        │
-               │                   (judge resolves)
-               │                        │
-               │                   DisputeWindow ──(window expires, no escalation)──→ Distributed
-               │                        │
-               │                   (DAO escalation filed)
-               │                        │
-               │                   DAOEscalation ──(DAO rules)──→ Distributed
+Judging ──(aggregate)──→ DisputeWindow ──(window expires, no dispute)──→ Distributed
+                              │
+                              ├──(dispute filed)──→ Disputed
+                              │                        │
+                              │                   (judge resolves)
+                              │                        │
+                              │                   DisputeWindow ──(window expires, no escalation)──→ Distributed
+                              │                        │
+                              │                   (DAO escalation filed)
+                              │                        │
+                              │                   DAOEscalation ──(DAO rules or timeout)──→ Distributed
 ```
 
 - `aggregate()` transitions to `DisputeWindow` (not `Finalized`)
 - `distributeRewards()` requires `DisputeWindow` phase with expired window
-- After dispute resolution, a second `DisputeWindow` opens for DAO escalation only
-- After DAO resolution, `disputeWindowEnd` is set to `block.timestamp` (immediately expired) so distribution is available
+- The `DisputeWindow` phase serves dual purpose:
+  - **First window** (after `aggregate`): `disputeUsed == false` → dispute or DAO escalation not yet available, only `initiateDispute` or let expire
+  - **Second window** (after `resolveDispute`): `disputeUsed == true` → only `initiateDAOEscalation` or let expire
+- After DAO resolution or timeout, `disputeWindowEnd` is set to `block.timestamp` (immediately expired) so distribution is available
 
 ## New Storage
 
@@ -69,10 +73,11 @@ Judging → DisputeWindow ──(window expires, no dispute)──→ Distribute
 
 ```solidity
 uint256 public disputeWindow;              // duration in seconds (default 1 hour)
-uint256 public disputeBondMultiplier;       // e.g., 150 = 1.5x original bond
+uint256 public disputeBondMultiplier;       // e.g., 150 = 1.5x original bond, minimum 100
 uint256 public daoEscalationBond;           // flat amount in Taiko ERC-20
-address public daoEscalationBondToken;      // Taiko ERC-20 token address
+address public daoEscalationBondToken;      // Taiko ERC-20 token address (must be non-zero)
 address public daoAddress;                  // address authorized to resolve DAO escalations
+uint256 public daoResolutionWindow;         // max time for DAO to act (default 7 days)
 ```
 
 ### Per-Request Dispute State
@@ -87,28 +92,42 @@ mapping(uint256 => address) public disputeJudge;
 mapping(uint256 => bool) public daoEscalationUsed;
 mapping(uint256 => address) public daoEscalator;
 mapping(uint256 => uint256) public daoEscalationBondPaid;
+mapping(uint256 => uint256) public daoEscalationDeadline;
 ```
 
 ### Setter Functions (Owner-Only)
 
 ```solidity
 function setDisputeWindow(uint256 duration) external onlyOwner;
-function setDisputeBondMultiplier(uint256 multiplier) external onlyOwner;
+function setDisputeBondMultiplier(uint256 multiplier) external onlyOwner;  // requires multiplier >= 100
 function setDaoEscalationBond(uint256 amount) external onlyOwner;
-function setDaoEscalationBondToken(address token) external onlyOwner;
+function setDaoEscalationBondToken(address token) external onlyOwner;     // requires token != address(0)
 function setDaoAddress(address dao) external onlyOwner;
+function setDaoResolutionWindow(uint256 duration) external onlyOwner;
 ```
+
+All setters emit corresponding parameter-change events (see Events section).
 
 Storage is appended after existing variables — no collision risk with the UUPS proxy.
 
 ## Events
 
 ```solidity
+// Dispute lifecycle events
 event DisputeInitiated(uint256 indexed requestId, address disputer, string reason);
 event DisputeWindowOpened(uint256 indexed requestId, uint256 endTimestamp);
 event DisputeResolved(uint256 indexed requestId, bool overturned, bytes finalAnswer);
 event DAOEscalationInitiated(uint256 indexed requestId, address escalator);
 event DAOEscalationResolved(uint256 indexed requestId, bytes finalAnswer);
+event DAOEscalationTimedOut(uint256 indexed requestId);
+
+// Parameter change events
+event DisputeWindowUpdated(uint256 oldDuration, uint256 newDuration);
+event DisputeBondMultiplierUpdated(uint256 oldMultiplier, uint256 newMultiplier);
+event DaoEscalationBondUpdated(uint256 oldAmount, uint256 newAmount);
+event DaoEscalationBondTokenUpdated(address oldToken, address newToken);
+event DaoAddressUpdated(address oldDao, address newDao);
+event DaoResolutionWindowUpdated(uint256 oldDuration, uint256 newDuration);
 ```
 
 ## Errors
@@ -126,6 +145,10 @@ error NotDAO(address caller);
 error InsufficientDAOEscalationBond(uint256 required, uint256 provided);
 error NotInDisputedPhase(uint256 requestId);
 error NotInDAOEscalation(uint256 requestId);
+error DAOResolutionTimedOut(uint256 requestId);
+error DisputeBondMultiplierTooLow(uint256 multiplier);
+error InvalidBondTokenAddress();
+error ETHSentWithERC20Bond();
 ```
 
 ## Functions
@@ -140,6 +163,7 @@ error NotInDAOEscalation(uint256 requestId);
 **Bond:**
 - Required: `request.bondAmount * disputeBondMultiplier / 100`
 - Paid in `request.bondToken` (ETH via msg.value, or ERC-20 via transferFrom)
+- If `request.bondToken != address(0)` (ERC-20): require `msg.value == 0` to prevent ETH getting stuck
 
 **Effects:**
 1. Store `disputer`, `disputeBondPaid`, `disputeReason`
@@ -168,10 +192,13 @@ error NotInDAOEscalation(uint256 requestId);
 - Set `disputeWindowEnd = block.timestamp + disputeWindow`
 - Emit `DisputeResolved` and `DisputeWindowOpened`
 
-### `initiateDAOEscalation(uint256 requestId) external payable`
+### `initiateDAOEscalation(uint256 requestId) external`
+
+Note: **not** `payable` — DAO escalation bond is always ERC-20, so no ETH should be sent.
 
 **Guards:**
 - Phase is `DisputeWindow`
+- `block.timestamp < disputeWindowEnd[requestId]`
 - `disputeUsed[requestId]` is true (dispute already happened)
 - `daoEscalationUsed[requestId]` is false
 - `daoAddress != address(0)`
@@ -183,14 +210,16 @@ error NotInDAOEscalation(uint256 requestId);
 **Effects:**
 1. Store `daoEscalator`, `daoEscalationBondPaid`
 2. Set `daoEscalationUsed = true`
-3. Transition to `DAOEscalation` phase
-4. Emit `DAOEscalationInitiated`
+3. Set `daoEscalationDeadline = block.timestamp + daoResolutionWindow`
+4. Transition to `DAOEscalation` phase
+5. Emit `DAOEscalationInitiated`
 
 ### `resolveDAOEscalation(uint256 requestId, bool overturn, bytes calldata newAnswer, address[] calldata newWinners) external`
 
 **Guards:**
 - Phase is `DAOEscalation`
 - `msg.sender == daoAddress`
+- `block.timestamp <= daoEscalationDeadline[requestId]` (DAO hasn't timed out)
 - If `overturn`: `newWinners` non-empty, all must have revealed
 
 **If upheld** (`overturn = false`):
@@ -203,6 +232,20 @@ error NotInDAOEscalation(uint256 requestId);
 **In both cases:**
 - Transition to `DisputeWindow` with `disputeWindowEnd = block.timestamp` (immediately expired, DAO is final)
 - Emit `DAOEscalationResolved`
+
+### `timeoutDAOEscalation(uint256 requestId) external`
+
+Called by anyone if the DAO fails to act within `daoResolutionWindow`.
+
+**Guards:**
+- Phase is `DAOEscalation`
+- `block.timestamp > daoEscalationDeadline[requestId]`
+
+**Effects:**
+- Escalator's bond returned in full (DAO failed to act, not escalator's fault)
+- Current `_finalAnswers` and `_winners` stand (dispute judge's decision holds)
+- Transition to `DisputeWindow` with `disputeWindowEnd = block.timestamp` (immediately expired)
+- Emit `DAOEscalationTimedOut`
 
 ### Modified `aggregate()`
 
@@ -240,15 +283,15 @@ No judge slashing in this implementation (hackathon scope).
 
 ### Contract Changes
 
-- **`Phase` enum:** Extended with `DisputeWindow` (5), `Disputed` (6), `DAOEscalation` (7). `Distributed` shifts to 8, `Failed` to 9.
+- **`Phase` enum:** Three new values appended: `DisputeWindow` (7), `Disputed` (8), `DAOEscalation` (9). Existing values `Distributed` (5) and `Failed` (6) unchanged — preserves UUPS storage compatibility.
 - **`aggregate()`:** Transitions to `DisputeWindow` instead of `Finalized`. Sets `disputeWindowEnd`.
-- **`distributeRewards()`:** Guard changes to require `DisputeWindow` + expired window.
-- **`getResolution()`:** Returns `finalized = true` when phase >= `DisputeWindow`.
+- **`distributeRewards()`:** Guard changes to require `DisputeWindow` phase AND `block.timestamp >= disputeWindowEnd[requestId]`.
+- **`getResolution()`:** Returns `finalized = true` only when phase is `Distributed`. During `DisputeWindow`/`Disputed`/`DAOEscalation`, the answer exists but is still contestable, so `finalized` remains `false`. This keeps the ERC-8033 interface semantically correct — consumers can trust that `finalized = true` means the answer will not change.
 
 ### Existing Tests
 
 - Tests calling `distributeRewards` after `aggregate` need `vm.warp` past the dispute window.
-- Tests checking phase after `aggregate` need to expect `DisputeWindow` (5) instead of `Finalized` (4).
+- Tests checking phase after `aggregate` need to expect `DisputeWindow` (7) instead of `Finalized` (4).
 - All other tests (createRequest, commit, reveal, endCommitPhase, endRevealPhase) unchanged.
 
 ### Client Changes
@@ -275,9 +318,23 @@ No judge slashing in this implementation (hackathon scope).
 12. **Forfeited bond distribution:** verify 50/50 split to winners and requester
 13. **Full E2E flow:** create → commit → reveal → judge → dispute → DAO escalation → distribute
 14. **Modified existing tests:** verify aggregate + warp + distribute still works
+15. **Dispute at exact deadline:** filing at `block.timestamp == disputeWindowEnd` reverts (strict less-than)
+16. **ETH sent with ERC-20 dispute bond:** reverts with `ETHSentWithERC20Bond`
+17. **DAO escalation timeout:** DAO fails to act → `timeoutDAOEscalation` → escalator bond returned → distributable
+18. **Zero dispute bond multiplier rejected:** `setDisputeBondMultiplier(0)` reverts
+19. **Invalid bond token rejected:** `setDaoEscalationBondToken(address(0))` reverts
 
 ### Updated Existing Tests
 
-- `test_aggregate()` — expect `DisputeWindow` phase
-- `test_distributeRewards_*` — add `vm.warp` past dispute window
+- `test_aggregate()` — expect `DisputeWindow` (7) phase instead of `Finalized` (4)
+- `test_distributeRewards_*` — add `vm.warp` past dispute window before calling distribute
 - `test_fullFlow()` — add `vm.warp` past dispute window
+- `test_getResolution_notFinalized()` — update: `DisputeWindow` phase returns `finalized = false`
+
+## Accepted Risks (Hackathon Scope)
+
+- **Pseudo-random dispute judge selection** reuses `blockhash`-based mechanism from `_transitionToJudging`. Sequencer-manipulable on L2. Accepted for hackathon; VRF is a future improvement.
+- **Push-based bond distribution** in `resolveDispute`/`resolveDAOEscalation` could revert if a winner is a contract without `receive`. Consistent with existing `distributeRewards` pattern. Pull pattern is a future improvement.
+- **Integer division dust** from 50/50 bond splits and per-winner division is not redistributed. Consistent with existing reward distribution. Dust remains in the contract.
+- **No judge slashing** when a dispute is overturned. The original judge faces no penalty beyond not receiving additional compensation.
+- **Judge removal between aggregation and dispute** — if the original judge is removed from the pool before a dispute, the exclusion filter is a no-op (harmless). If the dispute judge is removed after selection but before calling `resolveDispute`, their call still succeeds (consistent with existing `aggregate` behavior).
