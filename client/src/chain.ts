@@ -26,7 +26,7 @@ const erc20Abi = [
   },
 ] as const;
 
-const ACTIVE_PHASES = new Set<PhaseName>(['committing', 'revealing', 'judging', 'finalized']);
+const ACTIVE_PHASES = new Set<PhaseName>(['committing', 'revealing', 'judging', 'finalized', 'disputeWindow', 'disputed', 'daoEscalation']);
 
 const PHASE_NAMES: Record<number, PhaseName> = {
   0: 'none',
@@ -36,6 +36,9 @@ const PHASE_NAMES: Record<number, PhaseName> = {
   4: 'finalized',
   5: 'distributed',
   6: 'failed',
+  7: 'disputeWindow',
+  8: 'disputed',
+  9: 'daoEscalation',
 };
 
 interface ChainClientConfig {

@@ -7,7 +7,10 @@ export type PhaseName =
   | 'judging'
   | 'finalized'
   | 'distributed'
-  | 'failed';
+  | 'failed'
+  | 'disputeWindow'
+  | 'disputed'
+  | 'daoEscalation';
 
 export interface AgentCapabilities {
   capabilities: string[];

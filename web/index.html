@@ -1567,7 +1567,7 @@
     const IPFS_GATEWAY_URL = '__IPFS_GATEWAY_URL__';
     const PINATA_JWT = '__PINATA_JWT__';
 
-    const PHASE_NAMES = ['none', 'committing', 'revealing', 'judging', 'finalized', 'distributed', 'failed'];
+    const PHASE_NAMES = ['none', 'committing', 'revealing', 'judging', 'finalized', 'distributed', 'failed', 'dispute window', 'disputed', 'dao escalation'];
 
     const ORACLE_ABI = [
       'function nextRequestId() view returns (uint256)',
@@ -2063,7 +2063,7 @@
         let reasoning = null;
         let winners = [];
         const phase = PHASE_NAMES[Number(phaseIndex)] || 'none';
-        if (phase === 'finalized' || phase === 'distributed') {
+        if (phase === 'finalized' || phase === 'distributed' || phase === 'dispute window' || phase === 'disputed' || phase === 'dao escalation') {
           try {
             [reasoning, winners] = await Promise.all([
               oracle.getReasoning(id),
