@@ -469,6 +469,57 @@
 
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .pagination-btn {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 14px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-secondary);
+      font-family: 'Public Sans', sans-serif;
+      font-size: 0.75rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .pagination-btn:hover:not(:disabled) {
+      border-color: var(--brand-accent);
+      color: var(--text-primary);
+    }
+
+    .pagination-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    .pagination-btn svg {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .pagination-info {
+      font-size: 0.72rem;
+      color: var(--text-tertiary);
+      font-weight: 500;
+      letter-spacing: 0.03em;
+    }
+
     .request-list {
       display: flex;
       flex-direction: column;
@@ -1719,6 +1770,17 @@
         </div>
       </div>
       <div id="error-banner" class="error-banner"></div>
+      <div id="pagination" class="pagination" style="display: none;">
+        <button class="pagination-btn" id="prev-btn" onclick="changePage(-1)" disabled>
+          <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+          Prev
+        </button>
+        <span class="pagination-info" id="page-info">Page 1 of 1</span>
+        <button class="pagination-btn" id="next-btn" onclick="changePage(1)">
+          Next
+          <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
       <div id="request-list" class="request-list">
         <!-- Shimmer placeholders -->
         <div class="shimmer" style="height: 180px;"></div>
@@ -2513,8 +2575,35 @@
 
     let lastRequestsHash = '';
     let knownRequestIds = new Set();
+    const PAGE_SIZE = 10;
+    let currentPage = 1;
+    let totalPages = 1;
+    let allFetchedRequests = []; // cached for pagination without re-fetch
 
-    async function renderRequests(requests) {
+    function changePage(delta) {
+      currentPage = Math.max(1, Math.min(totalPages, currentPage + delta));
+      updatePagination();
+      renderRequests(allFetchedRequests, true);
+    }
+
+    function updatePagination() {
+      const pag = document.getElementById('pagination');
+      const prevBtn = document.getElementById('prev-btn');
+      const nextBtn = document.getElementById('next-btn');
+      const pageInfo = document.getElementById('page-info');
+
+      if (totalPages <= 1) {
+        pag.style.display = 'none';
+        return;
+      }
+
+      pag.style.display = 'flex';
+      prevBtn.disabled = currentPage <= 1;
+      nextBtn.disabled = currentPage >= totalPages;
+      pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+    }
+
+    async function renderRequests(requests, forceRender) {
       const container = document.getElementById('request-list');
 
       // Build a hash of the current state to detect changes
@@ -2528,18 +2617,21 @@
         daoUsed: r.disputeInfo?.daoUsed,
       })));
 
-      if (currentHash === lastRequestsHash) return;
+      if (!forceRender && currentHash === lastRequestsHash) return;
       lastRequestsHash = currentHash;
 
-      // Track which request IDs are new (for fade-in animation)
+      // Track which request IDs are new (for fade-in animation + page reset)
       const newRequestIds = new Set();
       for (const r of requests) {
         const idStr = r.id.toString();
         if (!knownRequestIds.has(idStr)) newRequestIds.add(idStr);
       }
+      // Reset to page 1 when new requests appear
+      if (newRequestIds.size > 0 && !forceRender) currentPage = 1;
       knownRequestIds = new Set(requests.map(r => r.id.toString()));
 
       if (requests.length === 0) {
+        document.getElementById('pagination').style.display = 'none';
         container.innerHTML = `
           <div class="empty-state fade-in">
             <div class="empty-icon">
@@ -2558,10 +2650,16 @@
         return;
       }
 
-      // Show newest first
+      // Show newest first, then paginate
       const sorted = [...requests].reverse();
+      totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+      currentPage = Math.min(currentPage, totalPages);
+      updatePagination();
 
-      container.innerHTML = (await Promise.all(sorted.map(async (r, idx) => {
+      const startIdx = (currentPage - 1) * PAGE_SIZE;
+      const pageItems = sorted.slice(startIdx, startIdx + PAGE_SIZE);
+
+      container.innerHTML = (await Promise.all(pageItems.map(async (r, idx) => {
         const req = r.request;
         const resolvedQuery = await resolveIpfsString(req.query);
         const numAgents = Number(req.numInfoAgents);
@@ -2752,6 +2850,7 @@
           if (r.request.bondToken !== ethers.ZeroAddress) tokenAddrs.add(r.request.bondToken);
         }
         await Promise.all([...tokenAddrs].map(resolveTokenSymbol));
+        allFetchedRequests = requests;
         renderPipeline(requests);
         await renderRequests(requests);
         refreshText.textContent = `Updated ${new Date().toLocaleTimeString()}`;
