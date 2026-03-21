@@ -2387,7 +2387,11 @@
       const nextId = await oracle.nextRequestId();
       const requests = [];
 
-      for (let id = 1n; id < nextId; id++) {
+      // Fetch all requests in parallel batches to avoid sequential RPC bottleneck
+      const ids = [];
+      for (let id = 1n; id < nextId; id++) ids.push(id);
+
+      const results = await Promise.allSettled(ids.map(async (id) => {
         const [phaseIndex, req, commits, reveals, resolution, judge, revealDeadline] = await Promise.all([
           oracle.phases(id),
           oracle.getRequest(id),
@@ -2443,7 +2447,7 @@
           }
         }
 
-        requests.push({
+        return {
           id,
           phase,
           request: req,
@@ -2458,7 +2462,15 @@
           reasoning,
           winners,
           disputeInfo,
-        });
+        };
+      }));
+
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          requests.push(result.value);
+        } else {
+          console.warn('Failed to fetch request:', result.reason);
+        }
       }
 
       return requests;
