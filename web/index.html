@@ -1473,6 +1473,176 @@
     .action-status.error { color: var(--red-300); }
     .action-status.success { color: var(--green-300); }
 
+    /* Dispute reason modal */
+    .dispute-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(5, 9, 18, 0.85);
+      backdrop-filter: blur(8px);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      opacity: 0;
+      animation: modal-fade-in 0.25s ease forwards;
+    }
+
+    @keyframes modal-fade-in {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .dispute-modal {
+      background: var(--bg-elevated);
+      border: 1px solid rgba(245, 166, 35, 0.25);
+      border-radius: 20px;
+      padding: 0;
+      max-width: 480px;
+      width: 100%;
+      box-shadow:
+        0 0 60px rgba(245, 166, 35, 0.08),
+        0 24px 48px rgba(0, 0, 0, 0.4);
+      overflow: hidden;
+      transform: translateY(12px) scale(0.97);
+      animation: modal-slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @keyframes modal-slide-in {
+      from { transform: translateY(12px) scale(0.97); opacity: 0.5; }
+      to { transform: translateY(0) scale(1); opacity: 1; }
+    }
+
+    .dispute-modal-header {
+      padding: 24px 28px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid rgba(245, 166, 35, 0.1);
+    }
+
+    .dispute-modal-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(245, 166, 35, 0.15), rgba(232, 145, 45, 0.08));
+      border: 1px solid rgba(245, 166, 35, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .dispute-modal-icon svg {
+      width: 20px;
+      height: 20px;
+      stroke: var(--orange-300);
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      filter: drop-shadow(0 0 4px rgba(245, 166, 35, 0.4));
+    }
+
+    .dispute-modal-title {
+      font-family: 'Clash Grotesk', sans-serif;
+      font-weight: 600;
+      font-size: 1.1rem;
+      color: var(--text-primary);
+    }
+
+    .dispute-modal-subtitle {
+      font-size: 0.75rem;
+      color: var(--text-tertiary);
+      margin-top: 2px;
+    }
+
+    .dispute-modal-body {
+      padding: 20px 28px 24px;
+    }
+
+    .dispute-modal-textarea {
+      width: 100%;
+      min-height: 120px;
+      padding: 14px 16px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      color: var(--text-primary);
+      font-family: 'Public Sans', sans-serif;
+      font-size: 0.88rem;
+      line-height: 1.6;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .dispute-modal-textarea::placeholder {
+      color: var(--text-tertiary);
+      font-style: italic;
+    }
+
+    .dispute-modal-textarea:focus {
+      border-color: var(--orange-300);
+      box-shadow: 0 0 0 3px rgba(245, 166, 35, 0.1);
+    }
+
+    .dispute-modal-hint {
+      font-size: 0.7rem;
+      color: var(--text-tertiary);
+      margin-top: 10px;
+      line-height: 1.5;
+    }
+
+    .dispute-modal-footer {
+      padding: 16px 28px 24px;
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .dispute-modal-btn {
+      padding: 10px 22px;
+      border-radius: 12px;
+      font-family: 'Clash Grotesk', 'Public Sans', sans-serif;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: 1px solid;
+    }
+
+    .dispute-modal-btn.cancel {
+      background: transparent;
+      border-color: var(--border);
+      color: var(--text-secondary);
+    }
+
+    .dispute-modal-btn.cancel:hover {
+      border-color: var(--text-tertiary);
+      color: var(--text-primary);
+    }
+
+    .dispute-modal-btn.submit {
+      background: linear-gradient(135deg, rgba(245, 166, 35, 0.2), rgba(232, 145, 45, 0.12));
+      border-color: rgba(245, 166, 35, 0.4);
+      color: var(--orange-300);
+    }
+
+    .dispute-modal-btn.submit:hover {
+      background: linear-gradient(135deg, rgba(245, 166, 35, 0.3), rgba(232, 145, 45, 0.18));
+      border-color: rgba(245, 166, 35, 0.6);
+      box-shadow: 0 0 20px rgba(245, 166, 35, 0.12);
+      transform: translateY(-1px);
+    }
+
+    .dispute-modal-btn.submit:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
     /* Request card border glow for disputed phases */
     .request-card.phase-dispute-window {
       border-color: rgba(245, 166, 35, 0.25);
@@ -2735,6 +2905,79 @@
       return html;
     }
 
+    function showDisputeReasonModal() {
+      return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.className = 'dispute-modal-overlay';
+        overlay.innerHTML = `
+          <div class="dispute-modal">
+            <div class="dispute-modal-header">
+              <div class="dispute-modal-icon">
+                <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              </div>
+              <div>
+                <div class="dispute-modal-title">File a Dispute</div>
+                <div class="dispute-modal-subtitle">Challenge the judge's decision with a bonded stake</div>
+              </div>
+            </div>
+            <div class="dispute-modal-body">
+              <textarea class="dispute-modal-textarea" id="dispute-reason-input"
+                placeholder="Explain why you believe the judge's decision was incorrect..."
+                autofocus></textarea>
+              <div class="dispute-modal-hint">
+                Your reason will be stored on-chain. Be specific about what the judge got wrong and what the correct answer should be.
+              </div>
+            </div>
+            <div class="dispute-modal-footer">
+              <button class="dispute-modal-btn cancel" id="dispute-cancel-btn">Cancel</button>
+              <button class="dispute-modal-btn submit" id="dispute-submit-btn" disabled>Submit Dispute</button>
+            </div>
+          </div>`;
+
+        document.body.appendChild(overlay);
+
+        const textarea = overlay.querySelector('#dispute-reason-input');
+        const submitBtn = overlay.querySelector('#dispute-submit-btn');
+        const cancelBtn = overlay.querySelector('#dispute-cancel-btn');
+
+        textarea.addEventListener('input', () => {
+          submitBtn.disabled = !textarea.value.trim();
+        });
+
+        const cleanup = () => {
+          overlay.style.opacity = '0';
+          overlay.style.transition = 'opacity 0.15s ease';
+          setTimeout(() => overlay.remove(), 150);
+        };
+
+        submitBtn.addEventListener('click', () => {
+          const reason = textarea.value.trim();
+          cleanup();
+          resolve(reason);
+        });
+
+        cancelBtn.addEventListener('click', () => {
+          cleanup();
+          resolve(null);
+        });
+
+        overlay.addEventListener('click', (e) => {
+          if (e.target === overlay) { cleanup(); resolve(null); }
+        });
+
+        textarea.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && textarea.value.trim()) {
+            const reason = textarea.value.trim();
+            cleanup();
+            resolve(reason);
+          }
+          if (e.key === 'Escape') { cleanup(); resolve(null); }
+        });
+
+        setTimeout(() => textarea.focus(), 100);
+      });
+    }
+
     async function handleDisputeAction(requestId, action) {
       const statusEl = document.getElementById(`action-status-${requestId}`);
       const btnEl = document.getElementById(`action-btn-${requestId}-${action}`);
@@ -2758,8 +3001,17 @@
         const oracleWithSigner = new ethers.Contract(ORACLE_ADDRESS, ORACLE_ABI, walletSigner);
 
         if (action === 'dispute') {
-          const reason = prompt('Enter your dispute reason:');
-          if (!reason) { btnEl.disabled = false; spinner.remove(); btnEl.querySelector('.btn-text').style.display = ''; return; }
+          // Show modal — temporarily restore button while user types
+          spinner.remove();
+          btnEl.querySelector('.btn-text').style.display = '';
+          btnEl.disabled = false;
+          const reason = await showDisputeReasonModal();
+          if (!reason) return;
+          btnEl.disabled = true;
+          btnEl.querySelector('.btn-text').style.display = 'none';
+          const newSpinner = document.createElement('span');
+          newSpinner.className = 'btn-spinner';
+          btnEl.prepend(newSpinner);
 
           // Calculate bond
           const req = await oracle.getRequest(requestId);
@@ -2828,8 +3080,9 @@
         statusEl.textContent = reason;
         statusEl.className = 'action-status error';
       } finally {
-        spinner.remove();
-        btnEl.querySelector('.btn-text').style.display = '';
+        btnEl.querySelector('.btn-spinner')?.remove();
+        const txt = btnEl.querySelector('.btn-text');
+        if (txt) txt.style.display = '';
         btnEl.disabled = false;
       }
     }
