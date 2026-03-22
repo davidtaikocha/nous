@@ -2629,7 +2629,7 @@
               <div class="bar-track">
                 <div class="bar-fill${isExpired ? '' : ' active'}" style="width: ${isExpired ? '0' : '60'}%;"></div>
               </div>
-              <span class="bar-label${isExpired ? ' expired' : ''}">${isExpired ? 'Ready to distribute' : remaining}</span>
+              <span class="bar-label${isExpired ? ' expired' : ''}" ${!isExpired ? `data-countdown="${d.windowEnd}"` : ''}>${isExpired ? 'Ready to distribute' : remaining}</span>
             </div>
           </div>`;
       }
@@ -2683,7 +2683,7 @@
               ${r.phase === 'dao escalation' && daoRemaining ? `
               <div class="dao-meta-item">
                 <div class="meta-label">DAO Deadline</div>
-                <div class="meta-value">${daoRemaining}</div>
+                <div class="meta-value" data-countdown="${d.daoDeadline}">${daoRemaining}</div>
               </div>` : ''}
             </div>
           </div>`;
@@ -3180,12 +3180,12 @@
                 </div>
                 <div class="meta-item">
                   <div class="meta-label">Commit Deadline</div>
-                  <div class="meta-value">${timeRemaining(req.deadline)}</div>
+                  <div class="meta-value" data-countdown="${req.deadline}">${timeRemaining(req.deadline)}</div>
                 </div>
                 ${r.revealDeadline > 0n ? `
                 <div class="meta-item">
                   <div class="meta-label">Reveal Deadline</div>
-                  <div class="meta-value">${timeRemaining(r.revealDeadline)}</div>
+                  <div class="meta-value" data-countdown="${r.revealDeadline}">${timeRemaining(r.revealDeadline)}</div>
                 </div>` : ''}
                 <div class="meta-item">
                   <div class="meta-label">Requester</div>
@@ -3323,6 +3323,14 @@
       fetchAgentBalances();
       poll();
       setInterval(() => { poll(); fetchAgentBalances(); }, POLL_INTERVAL);
+
+      // 1-second countdown ticker — updates all [data-countdown] elements in-place
+      setInterval(() => {
+        document.querySelectorAll('[data-countdown]').forEach(el => {
+          const deadline = el.getAttribute('data-countdown');
+          el.textContent = timeRemaining(deadline);
+        });
+      }, 1000);
     })();
   </script>
 </body>
