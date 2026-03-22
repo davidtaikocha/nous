@@ -8,7 +8,7 @@ const vars = {
   '__RPC_URL__': process.env.RPC_URL || '',
   '__ORACLE_ADDRESS__': process.env.ORACLE_ADDRESS || '',
   '__IPFS_GATEWAY_URL__': process.env.IPFS_GATEWAY_URL || '',
-  '__PINATA_JWT__': process.env.PINATA_JWT || '',
+  '__PINATA_GATEWAY_TOKEN__': process.env.PINATA_GATEWAY_TOKEN || '',
   '__AGENTS_JSON__': process.env.AGENTS_JSON || '',
 };
 for (const [placeholder, value] of Object.entries(vars)) {

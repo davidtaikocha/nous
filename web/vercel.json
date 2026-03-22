@@ -1,4 +1,10 @@
 {
   "buildCommand": "bash build.sh",
-  "outputDirectory": "."
+  "outputDirectory": ".",
+  "functions": {
+    "api/ipfs-upload.js": {
+      "memory": 128,
+      "maxDuration": 10
+    }
+  }
 }

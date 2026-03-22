@@ -6,12 +6,13 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /// @title NousOracle
 /// @notice ERC-8033 Agent Council Oracle implementation.
 ///         A decentralized oracle using multi-agent councils with commit-reveal
 ///         to resolve arbitrary information queries on-chain.
-contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable {
+contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     // ============ Enums ============
@@ -469,7 +470,7 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable 
     }
 
     /// @inheritdoc IAgentCouncilOracle
-    function distributeRewards(uint256 requestId) external {
+    function distributeRewards(uint256 requestId) external nonReentrant {
         Phase phase = phases[requestId];
 
         if (phase == Phase.DisputeWindow) {
@@ -526,7 +527,7 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable 
     /// @notice File a dispute against the judge's decision.
     /// @param requestId The request to dispute.
     /// @param reason On-chain reason or IPFS hash of detailed reasoning.
-    function initiateDispute(uint256 requestId, string calldata reason) external payable {
+    function initiateDispute(uint256 requestId, string calldata reason) external payable nonReentrant {
         _requirePhase(requestId, Phase.DisputeWindow);
         if (block.timestamp >= disputeWindowEnd[requestId]) revert DisputeWindowNotOpen(requestId);
         if (disputeUsed[requestId]) revert DisputeAlreadyUsed(requestId);
@@ -568,7 +569,7 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable 
         bool overturn,
         bytes calldata newAnswer,
         address[] calldata newWinners
-    ) external {
+    ) external nonReentrant {
         _requirePhase(requestId, Phase.Disputed);
         if (msg.sender != disputeJudge[requestId]) revert NotDisputeJudge(requestId, msg.sender);
 
@@ -629,7 +630,7 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable 
         bool overturn,
         bytes calldata newAnswer,
         address[] calldata newWinners
-    ) external {
+    ) external nonReentrant {
         _requirePhase(requestId, Phase.DAOEscalation);
         if (msg.sender != daoAddress) revert NotDAO(msg.sender);
         if (block.timestamp > daoEscalationDeadline[requestId]) revert DAOResolutionTimedOut(requestId);
@@ -662,7 +663,7 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable 
     /// @notice Timeout a DAO escalation if the DAO fails to act.
     ///         Anyone can call after the deadline passes.
     /// @param requestId The escalated request.
-    function timeoutDAOEscalation(uint256 requestId) external {
+    function timeoutDAOEscalation(uint256 requestId) external nonReentrant {
         _requirePhase(requestId, Phase.DAOEscalation);
         if (block.timestamp <= daoEscalationDeadline[requestId]) revert DAODeadlineNotPassed(requestId);
 

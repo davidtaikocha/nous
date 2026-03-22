@@ -2111,7 +2111,7 @@
     const ORACLE_ADDRESS = '__ORACLE_ADDRESS__';
     const POLL_INTERVAL = 5000;
     const IPFS_GATEWAY_URL = '__IPFS_GATEWAY_URL__';
-    const PINATA_JWT = '__PINATA_JWT__';
+    const PINATA_GATEWAY_TOKEN = '__PINATA_GATEWAY_TOKEN__';
 
     const PHASE_NAMES = ['none', 'committing', 'revealing', 'judging', 'finalized', 'distributed', 'failed', 'dispute window', 'disputed', 'dao escalation'];
 
@@ -2400,17 +2400,17 @@
       try {
         if (useIpfs) {
           const uploadToIpfs = async (content) => {
-            const response = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
+            const response = await fetch('/api/ipfs-upload', {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${PINATA_JWT}`,
-              },
-              body: JSON.stringify({ pinataContent: { content } }),
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ content }),
             });
-            if (!response.ok) throw new Error(`IPFS upload failed (${response.status})`);
+            if (!response.ok) {
+              const err = await response.json().catch(() => ({}));
+              throw new Error(err.error || `IPFS upload failed (${response.status})`);
+            }
             const data = await response.json();
-            return data.IpfsHash;
+            return data.cid;
           };
 
           onChainQuery = await uploadToIpfs(query);
@@ -2512,7 +2512,7 @@
         // Detect IPFS CID
         if (text.startsWith('Qm') || text.startsWith('bafy')) {
           try {
-            const response = await fetch(`${IPFS_GATEWAY_URL}/ipfs/${text}?pinataGatewayToken=${PINATA_JWT}`);
+            const response = await fetch(`${IPFS_GATEWAY_URL}/ipfs/${text}?pinataGatewayToken=${PINATA_GATEWAY_TOKEN}`);
             if (!response.ok) return { text, _cid: text };
             const data = await response.json();
             // Handle { content: "..." } envelope from judge outputs
@@ -2537,7 +2537,7 @@
     async function resolveIpfsString(value) {
       if (!value || (!value.startsWith('Qm') && !value.startsWith('bafy'))) return { text: value, cid: null };
       try {
-        const response = await fetch(`${IPFS_GATEWAY_URL}/ipfs/${value}?pinataGatewayToken=${PINATA_JWT}`);
+        const response = await fetch(`${IPFS_GATEWAY_URL}/ipfs/${value}?pinataGatewayToken=${PINATA_GATEWAY_TOKEN}`);
         if (!response.ok) return { text: value, cid: value };
         const data = await response.json();
         if (data && typeof data.content === 'string' && Object.keys(data).length === 1) {
@@ -2552,7 +2552,7 @@
 
     function renderIpfsBadge(cid) {
       if (!cid) return '';
-      const gatewayLink = `${IPFS_GATEWAY_URL}/ipfs/${cid}?pinataGatewayToken=${PINATA_JWT}`;
+      const gatewayLink = `${IPFS_GATEWAY_URL}/ipfs/${cid}?pinataGatewayToken=${PINATA_GATEWAY_TOKEN}`;
       return `<a href="${gatewayLink}" target="_blank" rel="noopener" class="ipfs-badge" title="View raw on IPFS: ${cid}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 2L2 7l10 5 10-5-10-5z"/>
