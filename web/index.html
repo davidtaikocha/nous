@@ -612,32 +612,38 @@
     .phase-badge.failed .phase-dot { background: var(--red-300); }
 
     .phase-badge.dispute-window {
-      background: rgba(245, 166, 35, 0.12);
+      background: linear-gradient(135deg, rgba(245, 166, 35, 0.14), rgba(232, 145, 45, 0.08));
       color: var(--orange-300);
+      border: 1px solid rgba(245, 166, 35, 0.2);
     }
     .phase-badge.dispute-window .phase-dot {
       background: var(--orange-300);
       animation: pulse-dot 2s ease-in-out infinite;
+      box-shadow: 0 0 6px rgba(245, 166, 35, 0.5);
     }
 
     .phase-badge.disputed {
-      background: rgba(245, 166, 35, 0.16);
+      background: linear-gradient(135deg, rgba(245, 166, 35, 0.18), rgba(232, 145, 45, 0.1));
       color: var(--orange-300);
-      border: 1px solid rgba(245, 166, 35, 0.25);
+      border: 1px solid rgba(245, 166, 35, 0.3);
+      box-shadow: 0 0 12px rgba(245, 166, 35, 0.1);
     }
     .phase-badge.disputed .phase-dot {
       background: var(--orange-300);
-      animation: pulse-dot 1.5s ease-in-out infinite;
+      animation: pulse-dot 1.2s ease-in-out infinite;
+      box-shadow: 0 0 8px rgba(245, 166, 35, 0.6);
     }
 
     .phase-badge.dao-escalation {
-      background: rgba(176, 127, 255, 0.12);
+      background: linear-gradient(135deg, rgba(176, 127, 255, 0.14), rgba(155, 89, 255, 0.08));
       color: var(--purple-300);
-      border: 1px solid rgba(176, 127, 255, 0.2);
+      border: 1px solid rgba(176, 127, 255, 0.25);
+      box-shadow: 0 0 12px rgba(176, 127, 255, 0.08);
     }
     .phase-badge.dao-escalation .phase-dot {
       background: var(--purple-300);
-      animation: pulse-dot 1.5s ease-in-out infinite;
+      animation: pulse-dot 1.2s ease-in-out infinite;
+      box-shadow: 0 0 8px rgba(176, 127, 255, 0.6);
     }
 
     .request-card-body { padding: 20px; }
@@ -1074,11 +1080,13 @@
     /* Dispute info section */
     .dispute-info-section {
       margin-top: 16px;
-      padding: 16px;
-      background: rgba(245, 166, 35, 0.04);
-      border: 1px solid rgba(245, 166, 35, 0.15);
-      border-radius: var(--radius);
+      padding: 18px 18px 18px 22px;
+      background:
+        linear-gradient(135deg, rgba(245, 166, 35, 0.06) 0%, rgba(245, 166, 35, 0.02) 100%);
+      border: 1px solid rgba(245, 166, 35, 0.18);
+      border-radius: var(--radius-lg);
       position: relative;
+      overflow: hidden;
     }
 
     .dispute-info-section::before {
@@ -1088,43 +1096,66 @@
       top: 0;
       bottom: 0;
       width: 3px;
-      background: var(--orange-300);
+      background: linear-gradient(180deg, var(--orange-300), var(--orange-400));
       border-radius: 3px 0 0 3px;
     }
 
+    /* Subtle animated scanline for active dispute windows */
+    .dispute-info-section.active::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg,
+        transparent 0%,
+        rgba(245, 166, 35, 0.03) 50%,
+        transparent 100%
+      );
+      background-size: 100% 200%;
+      animation: dispute-scan 3s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    @keyframes dispute-scan {
+      0%, 100% { background-position: 0% 0%; }
+      50% { background-position: 0% 100%; }
+    }
+
     .dispute-info-label {
-      font-size: 0.65rem;
+      font-family: 'Clash Grotesk', sans-serif;
+      font-size: 0.72rem;
       font-weight: 600;
       letter-spacing: 0.1em;
       text-transform: uppercase;
       color: var(--orange-300);
-      margin-bottom: 10px;
+      margin-bottom: 12px;
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
     }
 
     .dispute-info-label svg {
-      width: 14px;
-      height: 14px;
+      width: 16px;
+      height: 16px;
       stroke: var(--orange-300);
       fill: none;
       stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
+      filter: drop-shadow(0 0 3px rgba(245, 166, 35, 0.4));
     }
 
     .dispute-meta-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
       gap: 10px;
-      margin-bottom: 10px;
+      margin-bottom: 12px;
     }
 
     .dispute-meta-item {
-      background: rgba(245, 166, 35, 0.05);
-      border-radius: 8px;
-      padding: 10px 12px;
+      background: rgba(245, 166, 35, 0.06);
+      border: 1px solid rgba(245, 166, 35, 0.08);
+      border-radius: 10px;
+      padding: 10px 14px;
     }
 
     .dispute-meta-item .meta-label {
@@ -1133,13 +1164,26 @@
 
     .dispute-reason {
       font-size: 0.82rem;
-      line-height: 1.5;
+      line-height: 1.6;
       color: var(--text-secondary);
       font-style: italic;
-      padding: 10px 12px;
-      background: rgba(245, 166, 35, 0.03);
-      border-radius: 8px;
-      border-left: 2px solid rgba(245, 166, 35, 0.3);
+      padding: 12px 14px;
+      background: rgba(245, 166, 35, 0.04);
+      border-radius: 10px;
+      border-left: 3px solid rgba(245, 166, 35, 0.35);
+      position: relative;
+    }
+
+    .dispute-reason::before {
+      content: '\201C';
+      position: absolute;
+      top: 4px;
+      left: 6px;
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: rgba(245, 166, 35, 0.2);
+      font-family: 'Clash Grotesk', serif;
+      line-height: 1;
     }
 
     .dispute-status-chip {
@@ -1174,11 +1218,13 @@
     /* DAO escalation section */
     .dao-info-section {
       margin-top: 16px;
-      padding: 16px;
-      background: rgba(176, 127, 255, 0.04);
-      border: 1px solid rgba(176, 127, 255, 0.15);
-      border-radius: var(--radius);
+      padding: 18px 18px 18px 22px;
+      background:
+        linear-gradient(135deg, rgba(176, 127, 255, 0.06) 0%, rgba(176, 127, 255, 0.02) 100%);
+      border: 1px solid rgba(176, 127, 255, 0.18);
+      border-radius: var(--radius-lg);
       position: relative;
+      overflow: hidden;
     }
 
     .dao-info-section::before {
@@ -1188,30 +1234,51 @@
       top: 0;
       bottom: 0;
       width: 3px;
-      background: var(--purple-300);
+      background: linear-gradient(180deg, var(--purple-300), var(--purple-400));
       border-radius: 3px 0 0 3px;
     }
 
+    .dao-info-section.active::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg,
+        transparent 0%,
+        rgba(176, 127, 255, 0.03) 50%,
+        transparent 100%
+      );
+      background-size: 100% 200%;
+      animation: dao-scan 4s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    @keyframes dao-scan {
+      0%, 100% { background-position: 0% 0%; }
+      50% { background-position: 0% 100%; }
+    }
+
     .dao-info-label {
-      font-size: 0.65rem;
+      font-family: 'Clash Grotesk', sans-serif;
+      font-size: 0.72rem;
       font-weight: 600;
       letter-spacing: 0.1em;
       text-transform: uppercase;
       color: var(--purple-300);
-      margin-bottom: 10px;
+      margin-bottom: 12px;
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
     }
 
     .dao-info-label svg {
-      width: 14px;
-      height: 14px;
+      width: 16px;
+      height: 16px;
       stroke: var(--purple-300);
       fill: none;
       stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
+      filter: drop-shadow(0 0 3px rgba(176, 127, 255, 0.4));
     }
 
     .dao-meta-grid {
@@ -1221,9 +1288,10 @@
     }
 
     .dao-meta-item {
-      background: rgba(176, 127, 255, 0.05);
-      border-radius: 8px;
-      padding: 10px 12px;
+      background: rgba(176, 127, 255, 0.06);
+      border: 1px solid rgba(176, 127, 255, 0.08);
+      border-radius: 10px;
+      padding: 10px 14px;
     }
 
     .dao-meta-item .meta-label {
@@ -1232,54 +1300,85 @@
 
     /* Dispute window countdown */
     .dispute-window-bar {
-      margin-top: 12px;
+      margin-top: 14px;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
     }
 
     .dispute-window-bar .bar-track {
       flex: 1;
-      height: 4px;
+      height: 6px;
       background: var(--bg-primary);
-      border-radius: 2px;
+      border-radius: 3px;
       overflow: hidden;
+      border: 1px solid rgba(245, 166, 35, 0.08);
     }
 
     .dispute-window-bar .bar-fill {
       height: 100%;
-      border-radius: 2px;
-      background: linear-gradient(90deg, var(--orange-300), var(--orange-400));
+      border-radius: 3px;
+      background: linear-gradient(90deg, var(--orange-400), var(--orange-300));
       transition: width 0.4s ease;
+      position: relative;
+    }
+
+    .dispute-window-bar .bar-fill.active {
+      animation: bar-pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes bar-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
     }
 
     .dispute-window-bar .bar-label {
-      font-size: 0.7rem;
+      font-size: 0.72rem;
+      font-weight: 500;
       color: var(--orange-300);
       white-space: nowrap;
     }
 
+    .dispute-window-bar .bar-label.expired {
+      color: var(--green-300);
+    }
+
     /* Dispute action buttons */
     .dispute-action {
-      margin-top: 12px;
+      margin-top: 14px;
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
       flex-wrap: wrap;
     }
 
     .dispute-action-btn {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      padding: 8px 16px;
-      border-radius: 10px;
-      font-family: 'Public Sans', sans-serif;
-      font-size: 0.75rem;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: 12px;
+      font-family: 'Clash Grotesk', 'Public Sans', sans-serif;
+      font-size: 0.8rem;
       font-weight: 600;
+      letter-spacing: 0.02em;
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: all 0.25s ease;
       border: 1px solid;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .dispute-action-btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+    }
+
+    .dispute-action-btn:hover::before {
+      opacity: 1;
     }
 
     .dispute-action-btn:disabled {
@@ -1288,66 +1387,119 @@
     }
 
     .dispute-action-btn svg {
-      width: 14px;
-      height: 14px;
+      width: 16px;
+      height: 16px;
       stroke: currentColor;
       fill: none;
       stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
+      position: relative;
+      z-index: 1;
+    }
+
+    .dispute-action-btn .btn-text {
+      position: relative;
+      z-index: 1;
     }
 
     .dispute-action-btn.dispute {
-      background: rgba(245, 166, 35, 0.1);
+      background: linear-gradient(135deg, rgba(245, 166, 35, 0.12), rgba(232, 145, 45, 0.08));
       border-color: rgba(245, 166, 35, 0.3);
       color: var(--orange-300);
     }
 
+    .dispute-action-btn.dispute::before {
+      background: linear-gradient(135deg, rgba(245, 166, 35, 0.2), rgba(232, 145, 45, 0.12));
+    }
+
     .dispute-action-btn.dispute:hover:not(:disabled) {
-      background: rgba(245, 166, 35, 0.2);
-      box-shadow: 0 0 16px rgba(245, 166, 35, 0.15);
+      border-color: rgba(245, 166, 35, 0.5);
+      box-shadow: 0 0 20px rgba(245, 166, 35, 0.15), 0 4px 12px rgba(0,0,0,0.2);
+      transform: translateY(-1px);
     }
 
     .dispute-action-btn.dao {
-      background: rgba(176, 127, 255, 0.1);
+      background: linear-gradient(135deg, rgba(176, 127, 255, 0.12), rgba(155, 89, 255, 0.08));
       border-color: rgba(176, 127, 255, 0.3);
       color: var(--purple-300);
     }
 
+    .dispute-action-btn.dao::before {
+      background: linear-gradient(135deg, rgba(176, 127, 255, 0.2), rgba(155, 89, 255, 0.12));
+    }
+
     .dispute-action-btn.dao:hover:not(:disabled) {
-      background: rgba(176, 127, 255, 0.2);
-      box-shadow: 0 0 16px rgba(176, 127, 255, 0.15);
+      border-color: rgba(176, 127, 255, 0.5);
+      box-shadow: 0 0 20px rgba(176, 127, 255, 0.15), 0 4px 12px rgba(0,0,0,0.2);
+      transform: translateY(-1px);
     }
 
     .dispute-action-btn.distribute {
-      background: rgba(71, 224, 160, 0.1);
+      background: linear-gradient(135deg, rgba(71, 224, 160, 0.12), rgba(0, 180, 100, 0.08));
       border-color: rgba(71, 224, 160, 0.3);
       color: var(--green-300);
     }
 
+    .dispute-action-btn.distribute::before {
+      background: linear-gradient(135deg, rgba(71, 224, 160, 0.2), rgba(0, 180, 100, 0.12));
+    }
+
     .dispute-action-btn.distribute:hover:not(:disabled) {
-      background: rgba(71, 224, 160, 0.2);
-      box-shadow: 0 0 16px rgba(71, 224, 160, 0.15);
+      border-color: rgba(71, 224, 160, 0.5);
+      box-shadow: 0 0 20px rgba(71, 224, 160, 0.15), 0 4px 12px rgba(0,0,0,0.2);
+      transform: translateY(-1px);
     }
 
     .dispute-action-btn .btn-spinner {
-      width: 12px;
-      height: 12px;
-      border: 1.5px solid currentColor;
+      width: 14px;
+      height: 14px;
+      border: 2px solid currentColor;
       border-top-color: transparent;
       border-radius: 50%;
-      animation: spin 1s linear infinite;
+      animation: spin 0.8s linear infinite;
+      position: relative;
+      z-index: 1;
     }
 
     .action-status {
-      font-size: 0.7rem;
+      font-size: 0.72rem;
       color: var(--text-tertiary);
-      min-height: 16px;
-      margin-top: 4px;
+      min-height: 18px;
+      margin-top: 6px;
+      padding-left: 2px;
     }
 
     .action-status.error { color: var(--red-300); }
     .action-status.success { color: var(--green-300); }
+
+    /* Request card border glow for disputed phases */
+    .request-card.phase-dispute-window {
+      border-color: rgba(245, 166, 35, 0.25);
+      box-shadow: 0 0 0 1px rgba(245, 166, 35, 0.05), inset 0 1px 0 rgba(245, 166, 35, 0.06);
+    }
+
+    .request-card.phase-disputed {
+      border-color: rgba(245, 166, 35, 0.3);
+      box-shadow: 0 0 24px rgba(245, 166, 35, 0.06), 0 0 0 1px rgba(245, 166, 35, 0.08);
+      animation: disputed-glow 3s ease-in-out infinite;
+    }
+
+    @keyframes disputed-glow {
+      0%, 100% { box-shadow: 0 0 24px rgba(245, 166, 35, 0.06), 0 0 0 1px rgba(245, 166, 35, 0.08); }
+      50% { box-shadow: 0 0 32px rgba(245, 166, 35, 0.1), 0 0 0 1px rgba(245, 166, 35, 0.15); }
+    }
+
+    .request-card.phase-dao-escalation {
+      border-color: rgba(176, 127, 255, 0.3);
+      box-shadow: 0 0 24px rgba(176, 127, 255, 0.06), 0 0 0 1px rgba(176, 127, 255, 0.08);
+      animation: dao-glow 4s ease-in-out infinite;
+    }
+
+    @keyframes dao-glow {
+      0%, 100% { box-shadow: 0 0 24px rgba(176, 127, 255, 0.06), 0 0 0 1px rgba(176, 127, 255, 0.08); }
+      50% { box-shadow: 0 0 32px rgba(176, 127, 255, 0.1), 0 0 0 1px rgba(176, 127, 255, 0.15); }
+    }
 
     /* Empty state */
     .empty-state {
@@ -2467,7 +2619,7 @@
         const remaining = timeRemaining(d.windowEnd);
         const isExpired = remaining === 'Expired';
         html += `
-          <div class="dispute-info-section">
+          <div class="dispute-info-section${isExpired ? '' : ' active'}">
             <div class="dispute-info-label">
               <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
               ${d.disputeUsed ? 'DAO Escalation Window' : 'Dispute Window'}
@@ -2475,9 +2627,9 @@
             <div class="dispute-window-bar">
               <span class="bar-label" style="width: 70px;">${isExpired ? 'Expired' : 'Closes in'}</span>
               <div class="bar-track">
-                <div class="bar-fill" style="width: ${isExpired ? '0' : '60'}%; background: linear-gradient(90deg, var(--orange-300), var(--orange-400));"></div>
+                <div class="bar-fill${isExpired ? '' : ' active'}" style="width: ${isExpired ? '0' : '60'}%;"></div>
               </div>
-              <span class="bar-label">${isExpired ? 'Ready to distribute' : remaining}</span>
+              <span class="bar-label${isExpired ? ' expired' : ''}">${isExpired ? 'Ready to distribute' : remaining}</span>
             </div>
           </div>`;
       }
@@ -2514,7 +2666,7 @@
       if (d.daoUsed && d.daoEscalator && d.daoEscalator !== ethers.ZeroAddress) {
         const daoRemaining = d.daoDeadline > 0n ? timeRemaining(d.daoDeadline) : '';
         html += `
-          <div class="dao-info-section">
+          <div class="dao-info-section${r.phase === 'dao escalation' ? ' active' : ''}">
             <div class="dao-info-label">
               <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
               DAO Escalation
@@ -3006,7 +3158,7 @@
         }
 
         return `
-          <div class="request-card${newRequestIds.has(r.id.toString()) ? ' fade-in' : ''}" style="${newRequestIds.has(r.id.toString()) ? `animation-delay: ${idx * 60}ms;` : ''}">
+          <div class="request-card${newRequestIds.has(r.id.toString()) ? ' fade-in' : ''} phase-${r.phase.replace(/\s+/g, '-')}" style="${newRequestIds.has(r.id.toString()) ? `animation-delay: ${idx * 60}ms;` : ''}">
             <div class="request-card-header">
               <span class="request-id">Request #${r.id.toString()}</span>
               <span class="phase-badge ${r.phase.replace(/\s+/g, '-')}">
