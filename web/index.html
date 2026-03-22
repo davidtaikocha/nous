@@ -2805,21 +2805,34 @@
       return div.innerHTML;
     }
 
+    function formatDuration(seconds) {
+      const s = Number(seconds);
+      if (s <= 0) return 'Default';
+      if (s < 3600) return `${Math.floor(s / 60)}m`;
+      if (s < 86400) return s % 3600 === 0 ? `${s / 3600}h` : `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
+      return s % 86400 === 0 ? `${s / 86400}d` : `${Math.floor(s / 86400)}d ${Math.floor((s % 86400) / 3600)}h`;
+    }
+
     function renderDisputeInfo(r) {
       const d = r.disputeInfo;
       if (!d) return '';
 
       let html = '';
+      const isCustomWindow = d.customWindow && d.customWindow > 0n;
 
       // Show dispute window countdown for dispute window phase
       if (r.phase === 'dispute window' && d.windowEnd > 0n) {
         const remaining = timeRemaining(d.windowEnd);
         const isExpired = remaining === 'Expired';
+        const windowLabel = d.disputeUsed ? 'DAO Escalation Window' : 'Dispute Window';
+        const durationTag = isCustomWindow
+          ? `<span style="margin-left: 6px; font-size: 0.6rem; padding: 1px 7px; border-radius: 999px; background: rgba(245, 166, 35, 0.1); border: 1px solid rgba(245, 166, 35, 0.2); color: var(--orange-300); font-weight: 500; letter-spacing: 0.03em;">${formatDuration(d.customWindow)}</span>`
+          : '';
         html += `
           <div class="dispute-info-section${isExpired ? '' : ' active'}">
             <div class="dispute-info-label">
               <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-              ${d.disputeUsed ? 'DAO Escalation Window' : 'Dispute Window'}
+              ${windowLabel}${durationTag}
             </div>
             <div class="dispute-window-bar">
               <span class="bar-label" style="width: 70px;">${isExpired ? 'Expired' : 'Closes in'}</span>
@@ -3141,7 +3154,7 @@
       for (let id = 1n; id < nextId; id++) ids.push(id);
 
       const results = await Promise.allSettled(ids.map(async (id) => {
-        const [phaseIndex, req, commits, reveals, resolution, judge, revealDeadline] = await Promise.all([
+        const [phaseIndex, req, commits, reveals, resolution, judge, revealDeadline, perRequestDW] = await Promise.all([
           oracle.phases(id),
           oracle.getRequest(id),
           oracle.getCommits(id),
@@ -3149,6 +3162,7 @@
           oracle.getResolution(id),
           oracle.selectedJudge(id),
           oracle.revealDeadlines(id),
+          oracle.requestDisputeWindow(id),
         ]);
 
         let reasoning = null;
@@ -3167,7 +3181,7 @@
         let disputeInfo = null;
         if (phase === 'dispute window' || phase === 'disputed' || phase === 'dao escalation' || phase === 'distributed') {
           try {
-            const [dwEnd, dUsed, dAddr, dBond, dReason, dJudge, daoUsed, daoAddr, daoBond, daoDeadline] = await Promise.all([
+            const [dwEnd, dUsed, dAddr, dBond, dReason, dJudge, daoUsed, daoAddr, daoBond, daoDeadline, reqDW] = await Promise.all([
               oracle.disputeWindowEnd(id),
               oracle.disputeUsed(id),
               oracle.disputer(id),
@@ -3178,6 +3192,7 @@
               oracle.daoEscalator(id),
               oracle.daoEscalationBondPaid(id),
               oracle.daoEscalationDeadline(id),
+              oracle.requestDisputeWindow(id),
             ]);
             // Resolve dispute reason from IPFS if it's a CID
             let resolvedReason = dReason;
@@ -3201,6 +3216,7 @@
               daoEscalator: daoAddr,
               daoBond: daoBond,
               daoDeadline: daoDeadline,
+              customWindow: reqDW,
             };
           } catch (e) {
             console.warn('Could not fetch dispute info for request', id.toString(), e);
@@ -3222,6 +3238,7 @@
           reasoning,
           winners,
           disputeInfo,
+          perRequestDisputeWindow: perRequestDW,
         };
       }));
 
@@ -3504,6 +3521,11 @@
                 <div class="meta-item">
                   <div class="meta-label">Judge</div>
                   <div class="meta-value mono">${shortAddr(r.selectedJudge)}</div>
+                </div>` : ''}
+                ${r.perRequestDisputeWindow && r.perRequestDisputeWindow > 0n ? `
+                <div class="meta-item">
+                  <div class="meta-label">Dispute Window</div>
+                  <div class="meta-value" style="color: var(--orange-300);">${formatDuration(r.perRequestDisputeWindow)}</div>
                 </div>` : ''}
               </div>
 
