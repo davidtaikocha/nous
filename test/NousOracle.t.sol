@@ -1440,4 +1440,63 @@ contract NousOracleTest is Test {
         oracle.initiateDAOEscalation(requestId);
         vm.stopPrank();
     }
+
+    // ============ Single Judge: Direct DAO Escalation ============
+
+    function test_initiateDAOEscalation_directWithSingleJudge() public {
+        // Remove judge2 so only judge1 remains
+        address dao = makeAddr("dao");
+        MockERC20 taikoToken = new MockERC20();
+
+        vm.startPrank(owner);
+        oracle.removeJudge(judge2);
+        oracle.setDisputeWindow(1 hours);
+        oracle.setDisputeBondMultiplier(150);
+        oracle.setDaoAddress(dao);
+        oracle.setDaoEscalationBondToken(address(taikoToken));
+        oracle.setDaoEscalationBond(1 ether);
+        oracle.setDaoResolutionWindow(7 days);
+        vm.stopPrank();
+
+        uint256 requestId = _createDefaultRequest(2);
+
+        bytes memory a1 = abi.encode("sunny");
+        bytes memory a2 = abi.encode("cloudy");
+
+        _commitAgent(requestId, agent1, a1, 1);
+        _commitAgent(requestId, agent2, a2, 2);
+        _revealAgent(requestId, agent1, a1, 1);
+        _revealAgent(requestId, agent2, a2, 2);
+
+        address judge = oracle.selectedJudge(requestId);
+        address[] memory winners = new address[](1);
+        winners[0] = agent1;
+
+        vm.prank(judge);
+        oracle.aggregate(requestId, abi.encode("sunny"), winners, abi.encode("correct"));
+
+        // In DisputeWindow, disputeUsed is false, but only 1 judge — can go to DAO directly
+        assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.DisputeWindow));
+        assertFalse(oracle.disputeUsed(requestId));
+
+        address escalator = makeAddr("escalator");
+        taikoToken.mint(escalator, 10 ether);
+
+        vm.startPrank(escalator);
+        taikoToken.approve(address(oracle), 1 ether);
+        oracle.initiateDAOEscalation(requestId);
+        vm.stopPrank();
+
+        assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.DAOEscalation));
+
+        // DAO resolves
+        address[] memory newWinners = new address[](1);
+        newWinners[0] = agent2;
+        vm.prank(dao);
+        oracle.resolveDAOEscalation(requestId, true, abi.encode("cloudy"), newWinners);
+
+        // Can distribute
+        oracle.distributeRewards(requestId);
+        assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.Distributed));
+    }
 }

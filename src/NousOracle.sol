@@ -611,12 +611,13 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
         emit DisputeWindowOpened(requestId, disputeWindowEnd[requestId]);
     }
 
-    /// @notice Escalate to DAO after dispute resolution.
+    /// @notice Escalate to DAO after dispute resolution, or directly if only 1 judge exists.
     /// @param requestId The request to escalate.
     function initiateDAOEscalation(uint256 requestId) external {
         _requirePhase(requestId, Phase.DisputeWindow);
         if (block.timestamp >= disputeWindowEnd[requestId]) revert DisputeWindowNotOpen(requestId);
-        if (!disputeUsed[requestId]) revert DisputeRequired(requestId);
+        // Allow direct DAO escalation if only 1 judge (can't dispute — no alternative judge)
+        if (!disputeUsed[requestId] && _judgeList.length > 1) revert DisputeRequired(requestId);
         if (daoEscalationUsed[requestId]) revert DAOEscalationAlreadyUsed(requestId);
         if (daoAddress == address(0)) revert DAONotSet();
 
