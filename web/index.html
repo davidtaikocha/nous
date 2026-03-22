@@ -2261,6 +2261,19 @@
             <option value="" selected>Any</option>
           </select>
         </div>
+        <div class="setting-group">
+          <label>Dispute Window</label>
+          <select id="setting-dispute-window">
+            <option value="0" selected>Default (1h)</option>
+            <option value="1800">30 min</option>
+            <option value="3600">1 hour</option>
+            <option value="7200">2 hours</option>
+            <option value="14400">4 hours</option>
+            <option value="43200">12 hours</option>
+            <option value="86400">24 hours</option>
+            <option value="172800">48 hours</option>
+          </select>
+        </div>
       </div>
       <div class="chatbox-row">
         <button class="settings-toggle" id="settings-toggle" onclick="toggleSettings()" title="Request settings">
@@ -2309,6 +2322,8 @@
       'function daoEscalationDeadline(uint256) view returns (uint256)',
       'function disputeWindow() view returns (uint256)',
       'function disputeBondMultiplier() view returns (uint256)',
+      'function requestDisputeWindow(uint256) view returns (uint256)',
+      'function setRequestDisputeWindow(uint256 requestId, uint256 duration)',
       'function daoEscalationBond() view returns (uint256)',
       'function daoEscalationBondToken() view returns (address)',
       'function initiateDispute(uint256 requestId, string reason) payable',
@@ -2620,6 +2635,18 @@
         status.textContent = `Tx sent: ${shortAddr(tx.hash)} \u2014 waiting for confirmation\u2026`;
 
         const receipt = await tx.wait();
+
+        // Set per-request dispute window if non-default
+        const disputeWindowSec = parseInt(document.getElementById('setting-dispute-window').value) || 0;
+        if (disputeWindowSec > 0) {
+          // Extract requestId from the receipt logs
+          const nextId = await oracle.nextRequestId();
+          const newRequestId = nextId - 1n;
+          status.textContent = 'Setting custom dispute window...';
+          const dwTx = await oracleWithSigner.setRequestDisputeWindow(newRequestId, disputeWindowSec);
+          await dwTx.wait();
+        }
+
         status.textContent = `Request created! Tx confirmed in block ${receipt.blockNumber}.`;
         status.className = 'chatbox-status success';
         input.value = '';

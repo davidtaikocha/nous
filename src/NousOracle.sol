@@ -128,6 +128,9 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
     /// @notice Deadline for DAO to act on an escalation.
     mapping(uint256 => uint256) public daoEscalationDeadline;
 
+    /// @notice Per-request dispute window override. 0 = use global default.
+    mapping(uint256 => uint256) public requestDisputeWindow;
+
     // ============ Errors ============
 
     error InvalidPhase(uint256 requestId, Phase expected, Phase actual);
@@ -272,6 +275,15 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
         uint256 old = daoResolutionWindow;
         daoResolutionWindow = duration;
         emit DaoResolutionWindowUpdated(old, duration);
+    }
+
+    /// @notice Set a per-request dispute window duration. Only callable by the requester during Committing phase.
+    /// @param requestId The request to configure.
+    /// @param duration Duration in seconds. 0 = use global default.
+    function setRequestDisputeWindow(uint256 requestId, uint256 duration) external {
+        _requirePhase(requestId, Phase.Committing);
+        if (msg.sender != _requests[requestId].requester) revert NotSelectedJudge(requestId, msg.sender); // reuse error: not requester
+        requestDisputeWindow[requestId] = duration;
     }
 
     // ============ Core Functions ============
@@ -463,7 +475,7 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
         _reasoning[requestId] = reasoning;
         _winners[requestId] = winners;
         phases[requestId] = Phase.DisputeWindow;
-        disputeWindowEnd[requestId] = block.timestamp + disputeWindow;
+        disputeWindowEnd[requestId] = block.timestamp + _effectiveDisputeWindow(requestId);
 
         emit ResolutionFinalized(requestId, finalAnswer);
         emit DisputeWindowOpened(requestId, disputeWindowEnd[requestId]);
@@ -593,7 +605,7 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
         }
 
         phases[requestId] = Phase.DisputeWindow;
-        disputeWindowEnd[requestId] = block.timestamp + disputeWindow;
+        disputeWindowEnd[requestId] = block.timestamp + _effectiveDisputeWindow(requestId);
 
         emit DisputeResolved(requestId, overturn, _finalAnswers[requestId]);
         emit DisputeWindowOpened(requestId, disputeWindowEnd[requestId]);
@@ -729,6 +741,12 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
     function _requirePhase(uint256 requestId, Phase expected) internal view {
         Phase actual = phases[requestId];
         if (actual != expected) revert InvalidPhase(requestId, expected, actual);
+    }
+
+    /// @dev Returns the effective dispute window for a request (per-request override or global default).
+    function _effectiveDisputeWindow(uint256 requestId) internal view returns (uint256) {
+        uint256 perRequest = requestDisputeWindow[requestId];
+        return perRequest > 0 ? perRequest : disputeWindow;
     }
 
     function _transitionToJudging(uint256 requestId) internal {
