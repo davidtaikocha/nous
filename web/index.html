@@ -2828,7 +2828,7 @@
                 <div class="meta-value mono">${shortAddr(d.disputeJudge)}</div>
               </div>` : ''}
             </div>
-            ${d.reason ? `<div class="dispute-reason">"${escapeHtml(d.reason)}"</div>` : ''}
+            ${d.reason ? `<div class="dispute-reason">${escapeHtml(d.reason)}${d.reasonCid ? ' ' + renderIpfsBadge(d.reasonCid) : ''}</div>` : ''}
           </div>`;
       }
 
@@ -3013,6 +3013,24 @@
           newSpinner.className = 'btn-spinner';
           btnEl.prepend(newSpinner);
 
+          // Upload reason to IPFS
+          statusEl.textContent = 'Uploading reason to IPFS...';
+          statusEl.className = 'action-status';
+          let onChainReason = reason;
+          try {
+            const ipfsRes = await fetch('/api/ipfs-upload', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ content: reason }),
+            });
+            if (ipfsRes.ok) {
+              const ipfsData = await ipfsRes.json();
+              onChainReason = ipfsData.cid;
+            }
+          } catch (e) {
+            console.warn('IPFS upload failed, storing reason on-chain:', e);
+          }
+
           // Calculate bond
           const req = await oracle.getRequest(requestId);
           const multiplier = await oracle.disputeBondMultiplier();
@@ -3021,7 +3039,7 @@
           if (req.bondToken === ethers.ZeroAddress) {
             statusEl.textContent = 'Sending dispute transaction...';
             statusEl.className = 'action-status';
-            const tx = await oracleWithSigner.initiateDispute(requestId, reason, { value: requiredBond });
+            const tx = await oracleWithSigner.initiateDispute(requestId, onChainReason, { value: requiredBond });
             statusEl.textContent = `Tx sent: ${shortAddr(tx.hash)}`;
             await tx.wait();
             statusEl.textContent = 'Dispute filed!';
@@ -3038,7 +3056,7 @@
             }
             statusEl.textContent = 'Sending dispute transaction...';
             statusEl.className = 'action-status';
-            const tx = await oracleWithSigner.initiateDispute(requestId, reason);
+            const tx = await oracleWithSigner.initiateDispute(requestId, onChainReason);
             statusEl.textContent = `Tx sent: ${shortAddr(tx.hash)}`;
             await tx.wait();
             statusEl.textContent = 'Dispute filed!';
@@ -3134,12 +3152,23 @@
               oracle.daoEscalationBondPaid(id),
               oracle.daoEscalationDeadline(id),
             ]);
+            // Resolve dispute reason from IPFS if it's a CID
+            let resolvedReason = dReason;
+            let reasonCid = null;
+            if (dReason && (dReason.startsWith('Qm') || dReason.startsWith('bafy'))) {
+              reasonCid = dReason;
+              try {
+                const resolved = await resolveIpfsString(dReason);
+                resolvedReason = resolved.text || dReason;
+              } catch { resolvedReason = dReason; }
+            }
             disputeInfo = {
               windowEnd: dwEnd,
               disputeUsed: dUsed,
               disputer: dAddr,
               disputeBond: dBond,
-              reason: dReason,
+              reason: resolvedReason,
+              reasonCid: reasonCid,
               disputeJudge: dJudge,
               daoUsed: daoUsed,
               daoEscalator: daoAddr,
