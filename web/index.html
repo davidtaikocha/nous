@@ -1259,6 +1259,96 @@
       white-space: nowrap;
     }
 
+    /* Dispute action buttons */
+    .dispute-action {
+      margin-top: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .dispute-action-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: 10px;
+      font-family: 'Public Sans', sans-serif;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: 1px solid;
+    }
+
+    .dispute-action-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .dispute-action-btn svg {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .dispute-action-btn.dispute {
+      background: rgba(245, 166, 35, 0.1);
+      border-color: rgba(245, 166, 35, 0.3);
+      color: var(--orange-300);
+    }
+
+    .dispute-action-btn.dispute:hover:not(:disabled) {
+      background: rgba(245, 166, 35, 0.2);
+      box-shadow: 0 0 16px rgba(245, 166, 35, 0.15);
+    }
+
+    .dispute-action-btn.dao {
+      background: rgba(176, 127, 255, 0.1);
+      border-color: rgba(176, 127, 255, 0.3);
+      color: var(--purple-300);
+    }
+
+    .dispute-action-btn.dao:hover:not(:disabled) {
+      background: rgba(176, 127, 255, 0.2);
+      box-shadow: 0 0 16px rgba(176, 127, 255, 0.15);
+    }
+
+    .dispute-action-btn.distribute {
+      background: rgba(71, 224, 160, 0.1);
+      border-color: rgba(71, 224, 160, 0.3);
+      color: var(--green-300);
+    }
+
+    .dispute-action-btn.distribute:hover:not(:disabled) {
+      background: rgba(71, 224, 160, 0.2);
+      box-shadow: 0 0 16px rgba(71, 224, 160, 0.15);
+    }
+
+    .dispute-action-btn .btn-spinner {
+      width: 12px;
+      height: 12px;
+      border: 1.5px solid currentColor;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    .action-status {
+      font-size: 0.7rem;
+      color: var(--text-tertiary);
+      min-height: 16px;
+      margin-top: 4px;
+    }
+
+    .action-status.error { color: var(--red-300); }
+    .action-status.success { color: var(--green-300); }
+
     /* Empty state */
     .empty-state {
       text-align: center;
@@ -1897,6 +1987,11 @@
       'function daoEscalationDeadline(uint256) view returns (uint256)',
       'function disputeWindow() view returns (uint256)',
       'function disputeBondMultiplier() view returns (uint256)',
+      'function daoEscalationBond() view returns (uint256)',
+      'function daoEscalationBondToken() view returns (address)',
+      'function initiateDispute(uint256 requestId, string reason) payable',
+      'function initiateDAOEscalation(uint256 requestId)',
+      'function distributeRewards(uint256 requestId)',
     ];
 
     const TAIKO_TOKEN = '0x557f5b2b222f1f59f94682df01d35dd11f37939a';
@@ -2442,7 +2537,149 @@
           </div>`;
       }
 
+      // Action buttons
+      if (r.phase === 'dispute window') {
+        const remaining = d.windowEnd > 0n ? timeRemaining(d.windowEnd) : 'Expired';
+        const isExpired = remaining === 'Expired';
+        const reqId = r.id.toString();
+
+        if (isExpired) {
+          // Window expired — show distribute button
+          html += `
+            <div class="dispute-action">
+              <button class="dispute-action-btn distribute" id="action-btn-${reqId}-distribute"
+                      onclick="handleDisputeAction(${reqId}n, 'distribute')">
+                <svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                <span class="btn-text">Distribute Rewards</span>
+              </button>
+            </div>
+            <div class="action-status" id="action-status-${reqId}"></div>`;
+        } else if (!d.disputeUsed) {
+          // First window — can file dispute
+          const bondSymbol = getTokenSymbol(r.request.bondToken);
+          html += `
+            <div class="dispute-action">
+              <button class="dispute-action-btn dispute" id="action-btn-${reqId}-dispute"
+                      onclick="handleDisputeAction(${reqId}n, 'dispute')">
+                <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <span class="btn-text">File Dispute</span>
+              </button>
+            </div>
+            <div class="action-status" id="action-status-${reqId}"></div>`;
+        } else if (!d.daoUsed) {
+          // Second window — can escalate to DAO
+          html += `
+            <div class="dispute-action">
+              <button class="dispute-action-btn dao" id="action-btn-${reqId}-dao"
+                      onclick="handleDisputeAction(${reqId}n, 'dao')">
+                <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                <span class="btn-text">Escalate to DAO</span>
+              </button>
+            </div>
+            <div class="action-status" id="action-status-${reqId}"></div>`;
+        }
+      }
+
       return html;
+    }
+
+    async function handleDisputeAction(requestId, action) {
+      const statusEl = document.getElementById(`action-status-${requestId}`);
+      const btnEl = document.getElementById(`action-btn-${requestId}-${action}`);
+      if (!statusEl || !btnEl) return;
+
+      if (!walletSigner) {
+        statusEl.textContent = 'Please connect your wallet first.';
+        statusEl.className = 'action-status error';
+        await connectWallet();
+        return;
+      }
+
+      btnEl.disabled = true;
+      btnEl.querySelector('.btn-text').style.display = 'none';
+      btnEl.querySelector('.btn-spinner')?.remove();
+      const spinner = document.createElement('span');
+      spinner.className = 'btn-spinner';
+      btnEl.prepend(spinner);
+
+      try {
+        const oracleWithSigner = new ethers.Contract(ORACLE_ADDRESS, ORACLE_ABI, walletSigner);
+
+        if (action === 'dispute') {
+          const reason = prompt('Enter your dispute reason:');
+          if (!reason) { btnEl.disabled = false; spinner.remove(); btnEl.querySelector('.btn-text').style.display = ''; return; }
+
+          // Calculate bond
+          const req = await oracle.getRequest(requestId);
+          const multiplier = await oracle.disputeBondMultiplier();
+          const requiredBond = req.bondAmount * multiplier / 100n;
+
+          if (req.bondToken === ethers.ZeroAddress) {
+            statusEl.textContent = 'Sending dispute transaction...';
+            statusEl.className = 'action-status';
+            const tx = await oracleWithSigner.initiateDispute(requestId, reason, { value: requiredBond });
+            statusEl.textContent = `Tx sent: ${shortAddr(tx.hash)}`;
+            await tx.wait();
+            statusEl.textContent = 'Dispute filed!';
+            statusEl.className = 'action-status success';
+          } else {
+            // ERC-20 bond
+            const token = new ethers.Contract(req.bondToken, ERC20_ABI, walletSigner);
+            const allowance = await token.allowance(walletAddress, ORACLE_ADDRESS);
+            if (allowance < requiredBond) {
+              statusEl.textContent = 'Approving token spend...';
+              statusEl.className = 'action-status';
+              const approveTx = await token.approve(ORACLE_ADDRESS, requiredBond);
+              await approveTx.wait();
+            }
+            statusEl.textContent = 'Sending dispute transaction...';
+            statusEl.className = 'action-status';
+            const tx = await oracleWithSigner.initiateDispute(requestId, reason);
+            statusEl.textContent = `Tx sent: ${shortAddr(tx.hash)}`;
+            await tx.wait();
+            statusEl.textContent = 'Dispute filed!';
+            statusEl.className = 'action-status success';
+          }
+        } else if (action === 'dao') {
+          // DAO escalation — always Taiko ERC-20
+          const bondToken = await oracle.daoEscalationBondToken?.() || TAIKO_TOKEN;
+          const bondAmount = await oracle.daoEscalationBond?.() || 0n;
+          const token = new ethers.Contract(bondToken, ERC20_ABI, walletSigner);
+          const allowance = await token.allowance(walletAddress, ORACLE_ADDRESS);
+          if (allowance < bondAmount) {
+            statusEl.textContent = 'Approving TAIKO spend...';
+            statusEl.className = 'action-status';
+            const approveTx = await token.approve(ORACLE_ADDRESS, bondAmount);
+            await approveTx.wait();
+          }
+          statusEl.textContent = 'Sending DAO escalation...';
+          statusEl.className = 'action-status';
+          const tx = await oracleWithSigner.initiateDAOEscalation(requestId);
+          statusEl.textContent = `Tx sent: ${shortAddr(tx.hash)}`;
+          await tx.wait();
+          statusEl.textContent = 'DAO escalation filed!';
+          statusEl.className = 'action-status success';
+        } else if (action === 'distribute') {
+          statusEl.textContent = 'Distributing rewards...';
+          statusEl.className = 'action-status';
+          const tx = await oracleWithSigner.distributeRewards(requestId);
+          statusEl.textContent = `Tx sent: ${shortAddr(tx.hash)}`;
+          await tx.wait();
+          statusEl.textContent = 'Rewards distributed!';
+          statusEl.className = 'action-status success';
+        }
+
+        setTimeout(poll, 1500);
+      } catch (err) {
+        console.error('Action error:', err);
+        const reason = err.reason || err.shortMessage || err.message || 'Transaction failed';
+        statusEl.textContent = reason;
+        statusEl.className = 'action-status error';
+      } finally {
+        spinner.remove();
+        btnEl.querySelector('.btn-text').style.display = '';
+        btnEl.disabled = false;
+      }
     }
 
     async function fetchAllRequests() {
