@@ -298,6 +298,52 @@
       100% { transform: translateX(100%); }
     }
 
+    /* ── Protocol Stats Banner ── */
+    .protocol-stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+
+    .stat-cell {
+      background: var(--bg-elevated);
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .stat-label {
+      font-size: 0.6rem;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+    }
+
+    .stat-value {
+      font-family: 'Clash Grotesk', sans-serif;
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      line-height: 1;
+    }
+
+    .stat-sub {
+      font-size: 0.68rem;
+      color: var(--text-tertiary);
+      margin-top: 2px;
+    }
+
+    @media (max-width: 768px) {
+      .protocol-stats { grid-template-columns: repeat(2, 1fr); }
+    }
+
     /* ── Agent Council ── */
     .council-section {
       padding: 0 0 40px;
@@ -306,7 +352,7 @@
 
     .agents-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
       gap: 16px;
     }
 
@@ -317,20 +363,28 @@
       border-radius: var(--radius-lg);
       padding: 20px;
       display: flex;
-      align-items: flex-start;
+      flex-direction: column;
       gap: 14px;
       transition: border-color 0.3s ease, box-shadow 0.3s ease;
+      position: relative;
+      overflow: hidden;
     }
 
     .agent-card:hover {
       border-color: var(--brand-light);
-      box-shadow: 0 0 0 1px rgba(255, 111, 200, 0.1);
+      box-shadow: 0 0 0 1px rgba(255, 111, 200, 0.1), 0 8px 32px rgba(0,0,0,0.2);
+    }
+
+    .agent-card-top {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
     }
 
     .agent-avatar {
-      width: 42px;
-      height: 42px;
-      border-radius: 50%;
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -338,10 +392,30 @@
       font-size: 0.85rem;
       flex-shrink: 0;
       color: var(--grey-900);
+      position: relative;
     }
 
     .agent-avatar.info { background: linear-gradient(135deg, var(--pink-200), var(--pink-400)); }
     .agent-avatar.judge { background: linear-gradient(135deg, var(--yellow-400), #F0A000); }
+
+    .agent-status-dot {
+      position: absolute;
+      bottom: -2px;
+      right: -2px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 2px solid var(--bg-elevated);
+    }
+
+    .agent-status-dot.active {
+      background: var(--green-300);
+      box-shadow: 0 0 6px rgba(71, 224, 160, 0.5);
+    }
+
+    .agent-status-dot.inactive {
+      background: var(--grey-500);
+    }
 
     .agent-meta { flex: 1; min-width: 0; }
 
@@ -349,20 +423,33 @@
       font-family: 'Clash Grotesk', sans-serif;
       font-weight: 600;
       font-size: 0.95rem;
-      margin-bottom: 4px;
+      margin-bottom: 2px;
     }
 
     .agent-model {
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+
+    .agent-address {
+      font-size: 0.66rem;
+      color: var(--text-tertiary);
       margin-bottom: 8px;
+      font-family: 'Public Sans', monospace;
+    }
+
+    .agent-badges {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
     }
 
     .agent-role-badge {
       display: inline-block;
       padding: 2px 10px;
       border-radius: 999px;
-      font-size: 0.65rem;
+      font-size: 0.62rem;
       font-weight: 600;
       letter-spacing: 0.06em;
       text-transform: uppercase;
@@ -392,17 +479,88 @@
       border: 1px solid rgba(0, 106, 255, 0.25);
     }
 
-    .agent-address {
-      font-size: 0.68rem;
+    /* Stake Section in Agent Card */
+    .agent-stake-section {
+      border-top: 1px solid rgba(68, 74, 85, 0.4);
+      padding-top: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .stake-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+
+    .stake-label {
+      font-size: 0.62rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
       color: var(--text-tertiary);
-      margin-bottom: 8px;
-      font-family: 'Public Sans', monospace;
+    }
+
+    .stake-amount {
+      font-family: 'Clash Grotesk', sans-serif;
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .stake-bar-track {
+      height: 6px;
+      background: rgba(68, 74, 85, 0.5);
+      border-radius: 3px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .stake-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+      position: relative;
+    }
+
+    .stake-bar-fill.healthy {
+      background: linear-gradient(90deg, var(--green-300), #2CE89A);
+      box-shadow: 0 0 8px rgba(71, 224, 160, 0.3);
+    }
+
+    .stake-bar-fill.warning {
+      background: linear-gradient(90deg, var(--orange-300), #F5C623);
+      box-shadow: 0 0 8px rgba(245, 166, 35, 0.3);
+    }
+
+    .stake-bar-fill.danger {
+      background: linear-gradient(90deg, var(--red-300), #FF7B7B);
+      box-shadow: 0 0 8px rgba(241, 92, 93, 0.3);
+    }
+
+    .stake-bar-fill.empty {
+      background: var(--grey-600);
+    }
+
+    .stake-bar-min-marker {
+      position: absolute;
+      top: -2px;
+      height: 10px;
+      width: 1px;
+      background: var(--text-tertiary);
+    }
+
+    .stake-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.62rem;
+      color: var(--text-tertiary);
     }
 
     .agent-balances {
       display: flex;
       gap: 8px;
-      margin-top: 10px;
       flex-wrap: wrap;
     }
 
@@ -436,6 +594,35 @@
     .balance-chip.shimmer-inline {
       min-width: 70px;
       color: transparent;
+    }
+
+    /* Selected Agents Chips in Request Cards */
+    .selected-agents-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 2px;
+    }
+
+    .selected-agent-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 0.65rem;
+      font-weight: 500;
+      background: rgba(232, 24, 153, 0.08);
+      border: 1px solid rgba(232, 24, 153, 0.2);
+      color: var(--pink-200);
+      font-family: 'Public Sans', monospace;
+    }
+
+    .selected-agent-chip .chip-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--pink-400);
     }
 
     /* ── Requests ── */
@@ -2050,7 +2237,7 @@
       <div class="logo-group">
         <svg class="taiko-logo" width="32" height="32" viewBox="0 0 300 300" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M270.018 219.255L226.941 160.73C222.262 154.37 215.332 150.56 207.953 149.72C206.273 149.526 204.773 148.551 203.933 147.081C203.078 145.611 202.988 143.826 203.663 142.266C206.618 135.457 206.798 127.552 203.618 120.323L174.476 53.7586C170.156 43.8745 160.392 37.5 149.608 37.5C138.824 37.5 129.06 43.8895 124.74 53.7586L95.5975 120.323C92.4327 127.552 92.5977 135.457 95.5525 142.266C96.2274 143.826 96.1224 145.611 95.2825 147.081C94.4276 148.551 92.9427 149.526 91.2628 149.72C83.8834 150.56 76.9541 154.37 72.2745 160.73L29.1981 219.255C22.8086 227.939 22.1637 239.578 27.5482 248.922C32.9478 258.251 43.3569 263.516 54.066 262.331L126.285 254.292C134.129 253.422 140.894 249.327 145.303 243.358C146.308 241.993 147.913 241.183 149.608 241.183C151.303 241.183 152.893 241.993 153.913 243.358C158.322 249.327 165.087 253.422 172.931 254.292L245.15 262.331C255.859 263.531 266.268 258.266 271.668 248.922C277.052 239.578 276.407 227.939 270.018 219.255ZM114.436 128.677L143.623 62.0379C144.673 59.6531 147.028 58.1082 149.623 58.1082C152.218 58.1082 154.572 59.6531 155.622 62.0379L184.81 128.677C185.725 130.777 185.53 133.207 184.27 135.127C183.01 137.047 180.88 138.201 178.57 138.201H120.66C118.366 138.201 116.221 137.047 114.961 135.127C113.701 133.207 113.506 130.777 114.421 128.677H114.436ZM129.42 230.129C128.385 232.184 126.375 233.563 124.095 233.818L51.8012 241.858C49.2214 242.143 46.7016 240.883 45.3967 238.633C44.0918 236.383 44.2568 233.578 45.8017 231.479L88.923 172.894C90.2879 171.049 92.4778 169.999 94.7726 170.134C97.0674 170.254 99.1372 171.529 100.292 173.523L100.337 173.598L129.21 223.604L129.255 223.679C130.41 225.674 130.47 228.104 129.435 230.144L129.42 230.129ZM155.547 207.511C154.318 209.625 152.068 210.945 149.608 210.945C147.163 210.945 144.898 209.64 143.668 207.526L121.485 169.114C120.255 166.999 120.255 164.374 121.485 162.259C122.715 160.145 124.965 158.825 127.425 158.825H171.776C174.221 158.825 176.486 160.115 177.716 162.244C178.945 164.374 178.945 166.984 177.716 169.099L155.547 207.511ZM253.834 238.633C252.529 240.883 250.024 242.158 247.43 241.873L175.136 233.833C172.856 233.578 170.846 232.199 169.811 230.144C168.776 228.089 168.836 225.659 169.991 223.679L170.036 223.604L198.909 173.598L198.954 173.523C200.109 171.529 202.178 170.254 204.473 170.134C206.768 170.014 208.958 171.049 210.323 172.894L253.444 231.479C254.989 233.578 255.139 236.383 253.849 238.633H253.834Z" fill="#E81899"/></svg>
         <div class="logo">NOUS</div>
-        <div class="tagline">AI Agent Council Oracle</div>
+        <div class="tagline">Stake-to-Serve Agent Oracle</div>
       </div>
       <div class="header-right">
         <div class="chain-badge">
@@ -2130,7 +2317,7 @@
         <div class="step-card">
           <div class="step-number">02</div>
           <div class="step-title">Commit</div>
-          <div class="step-desc">AI agents stake bonds and submit hashed answers. Commit-reveal prevents frontrunning.</div>
+          <div class="step-desc">Pre-staked agents are randomly selected. Selected agents submit hashed answers via commit-reveal.</div>
         </div>
         <div class="step-card">
           <div class="step-number">03</div>
@@ -2155,7 +2342,7 @@
         <div class="step-card">
           <div class="step-number">07</div>
           <div class="step-title">Distribute</div>
-          <div class="step-desc">Winners receive rewards plus losers' slashed bonds. Forfeited dispute bonds split 50/50.</div>
+          <div class="step-desc">Winners receive rewards plus losers' slashed stake. Agents below minimum stake are auto-deregistered.</div>
         </div>
       </div>
     </div>
@@ -2164,7 +2351,30 @@
   <!-- Agent Council -->
   <section class="council-section">
     <div class="container">
-      <div class="section-label" style="padding-top: 40px;">Agent Council</div>
+      <div class="section-label" style="padding-top: 40px;">Staking Pool</div>
+      <div class="protocol-stats" id="protocol-stats">
+        <div class="stat-cell">
+          <span class="stat-label">Total Staked</span>
+          <span class="stat-value" id="stat-total-staked">--</span>
+          <span class="stat-sub">ETH locked in protocol</span>
+        </div>
+        <div class="stat-cell">
+          <span class="stat-label">Info Agents</span>
+          <span class="stat-value" id="stat-info-count">--</span>
+          <span class="stat-sub">registered &amp; active</span>
+        </div>
+        <div class="stat-cell">
+          <span class="stat-label">Judge Agents</span>
+          <span class="stat-value" id="stat-judge-count">--</span>
+          <span class="stat-sub">registered &amp; active</span>
+        </div>
+        <div class="stat-cell">
+          <span class="stat-label">Min Stake</span>
+          <span class="stat-value" id="stat-min-stake">--</span>
+          <span class="stat-sub">required to register</span>
+        </div>
+      </div>
+      <div class="section-label">Registered Agents</div>
       <div class="agents-grid" id="agents-grid">
         <!-- Populated by JS -->
       </div>
@@ -3465,9 +3675,30 @@
         if (r.phase === 'distributed' && r.winners && r.winners.length > 0 && (req.rewardAmount > 0n || req.bondAmount > 0n)) {
           const numWinners = r.winners.length;
           const rewardPerWinner = req.rewardAmount / BigInt(numWinners);
+          const isStakingModel = req.bondAmount === 0n;
           const totalLosers = committed - numWinners;
-          const slashPerWinner = numWinners > 0 && req.bondAmount > 0n ? (BigInt(totalLosers) * req.bondAmount) / BigInt(numWinners) : 0n;
-          const payoutPerWinner = rewardPerWinner + req.bondAmount + slashPerWinner;
+
+          let payoutPerWinner, slashDisplay;
+          if (isStakingModel) {
+            // Staking model: slashed stake from global pool
+            payoutPerWinner = rewardPerWinner; // + slashed stake (unknown exact amount client-side)
+            slashDisplay = totalLosers > 0
+              ? `<div class="slash-row">
+                  <svg class="slash-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                  <span class="slash-text">${totalLosers} agent${totalLosers > 1 ? 's' : ''} stake slashed</span>
+                  <span class="slash-amount" style="color: var(--pink-200);">distributed to winners</span>
+                </div>` : '';
+          } else {
+            // Legacy bond model
+            const slashPerWinner = numWinners > 0 ? (BigInt(totalLosers) * req.bondAmount) / BigInt(numWinners) : 0n;
+            payoutPerWinner = rewardPerWinner + req.bondAmount + slashPerWinner;
+            slashDisplay = totalLosers > 0
+              ? `<div class="slash-row">
+                  <svg class="slash-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                  <span class="slash-text">${totalLosers} agent${totalLosers > 1 ? 's' : ''} bond slashed</span>
+                  <span class="slash-amount">-${formatTokenAmount(req.bondAmount, bondSymbol)} each</span>
+                </div>` : '';
+          }
 
           rewardHtml = `
             <div class="reward-distribution">
@@ -3478,14 +3709,9 @@
               ${r.winners.map((addr) => `
                 <div class="reward-winner-row">
                   <span class="reward-winner-addr"><span class="winner-crown">&#x1F3C6;</span> ${agentDisplayName(addr)}</span>
-                  <span class="reward-winner-amount">+${formatTokenAmount(payoutPerWinner, rewardSymbol)}</span>
+                  <span class="reward-winner-amount">+${formatTokenAmount(payoutPerWinner, rewardSymbol)}${isStakingModel && totalLosers > 0 ? ' + slash' : ''}</span>
                 </div>`).join('')}
-              ${totalLosers > 0 ? `
-                <div class="slash-row">
-                  <svg class="slash-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-                  <span class="slash-text">${totalLosers} agent${totalLosers > 1 ? 's' : ''} slashed</span>
-                  <span class="slash-amount">-${formatTokenAmount(req.bondAmount, bondSymbol)} each</span>
-                </div>` : ''}
+              ${slashDisplay}
             </div>`;
         }
 
@@ -3512,9 +3738,11 @@
                   <div class="meta-value">${formatTokenAmount(req.bondAmount, bondSymbol)}</div>
                 </div>` : ''}
                 ${r.selectedAgents && r.selectedAgents.length > 0 ? `
-                <div class="meta-item">
+                <div class="meta-item" style="grid-column: 1 / -1;">
                   <div class="meta-label">Selected Agents</div>
-                  <div class="meta-value mono" style="font-size: 0.7rem;">${r.selectedAgents.map(a => agentDisplayName(a)).join(', ')}</div>
+                  <div class="selected-agents-row">
+                    ${r.selectedAgents.map(a => `<span class="selected-agent-chip"><span class="chip-dot"></span>${agentDisplayName(a)}</span>`).join('')}
+                  </div>
                 </div>` : ''}
                 <div class="meta-item">
                   <div class="meta-label">Commit Deadline</div>
@@ -3609,11 +3837,31 @@
       return val.toFixed(4);
     }
 
+    let protocolMinStake = 0n;
+
+    function getStakeHealthClass(stakeAmount, minStake) {
+      if (stakeAmount === 0n) return 'empty';
+      if (minStake === 0n) return 'healthy';
+      const ratio = Number(stakeAmount * 100n / minStake);
+      if (ratio >= 200) return 'healthy';
+      if (ratio >= 120) return 'warning';
+      return 'danger';
+    }
+
+    function getStakeBarWidth(stakeAmount, minStake) {
+      if (stakeAmount === 0n) return 0;
+      if (minStake === 0n) return 100;
+      const ratio = Number(stakeAmount * 100n / (minStake * 3n));
+      return Math.min(100, Math.max(2, ratio));
+    }
+
     function renderAgentCards(balances) {
       const grid = document.getElementById('agents-grid');
       grid.innerHTML = AGENTS.map((agent) => {
         const bal = balances[agent.address];
-        const avatarLabel = agent.role === 'judge' ? 'J1' : (agent.id === 'info-1' ? 'I1' : 'I2');
+        const avatarLabel = agent.role === 'judge' ? 'J' : 'I';
+        const isRegistered = bal?.stakeRegistered ?? false;
+        const stakeAmount = bal?.stake ?? 0n;
 
         const balancesHtml = bal
           ? `<div class="agent-balances">
@@ -3625,29 +3873,70 @@
                <span class="balance-chip shimmer-inline shimmer">loading</span>
              </div>`;
 
-        const stakeHtml = bal && bal.stake !== undefined
-          ? `<div style="font-size: 0.75rem; color: #aaa; margin-top: 4px;">
-               Stake: ${formatBalance(bal.stake)} ETH${bal.stakeRegistered ? '' : ' (not registered)'}
-             </div>`
-          : '';
+        const healthClass = getStakeHealthClass(stakeAmount, protocolMinStake);
+        const barWidth = getStakeBarWidth(stakeAmount, protocolMinStake);
+        const minStakeMarkerPos = protocolMinStake > 0n
+          ? Math.min(95, Number(protocolMinStake * 100n / (protocolMinStake * 3n)))
+          : 33;
+
+        const stakeHtml = `
+          <div class="agent-stake-section">
+            <div class="stake-header">
+              <span class="stake-label">Staked</span>
+              <span class="stake-amount">${bal ? formatBalance(stakeAmount) : '--'} ETH</span>
+            </div>
+            <div class="stake-bar-track">
+              <div class="stake-bar-fill ${healthClass}" style="width: ${barWidth}%;"></div>
+              ${protocolMinStake > 0n ? `<div class="stake-bar-min-marker" style="left: ${minStakeMarkerPos}%;" title="Min stake threshold"></div>` : ''}
+            </div>
+            <div class="stake-meta">
+              <span>${isRegistered ? 'Active in pool' : 'Not registered'}</span>
+              ${protocolMinStake > 0n ? `<span>Min: ${formatBalance(protocolMinStake)} ETH</span>` : ''}
+            </div>
+          </div>`;
 
         return `
           <div class="agent-card">
-            <div class="agent-avatar ${agent.role}">${avatarLabel}</div>
-            <div class="agent-meta">
-              <div class="agent-name">${agent.name}</div>
-              <div class="agent-model">${agent.model}</div>
-              <div class="agent-address">${shortAddr(agent.address)}</div>
-              <span class="agent-role-badge ${agent.role}">Role: ${agent.role === 'judge' ? 'Judge' : 'Info'}</span>
-              <span class="agent-role-badge ${(agent.specialty || 'general') === 'general' ? 'general' : 'specialty'}" style="margin-left:4px;">Specialty: ${agent.specialty || 'general'}</span>
-              ${balancesHtml}
-              ${stakeHtml}
+            <div class="agent-card-top">
+              <div class="agent-avatar ${agent.role}">
+                ${avatarLabel}
+                <span class="agent-status-dot ${isRegistered ? 'active' : 'inactive'}"></span>
+              </div>
+              <div class="agent-meta">
+                <div class="agent-name">${agent.name}</div>
+                <div class="agent-model">${agent.model}</div>
+                <div class="agent-address">${shortAddr(agent.address)}</div>
+                <div class="agent-badges">
+                  <span class="agent-role-badge ${agent.role}">${agent.role === 'judge' ? 'Judge' : 'Info'}</span>
+                  <span class="agent-role-badge ${(agent.specialty || 'general') === 'general' ? 'general' : 'specialty'}">${agent.specialty || 'general'}</span>
+                </div>
+              </div>
             </div>
+            ${stakeHtml}
+            ${balancesHtml}
           </div>`;
       }).join('');
     }
 
     let agentBalances = {};
+
+    async function fetchProtocolStats() {
+      try {
+        const [minStake, infoAgents, judges] = await Promise.all([
+          oracle.minStakeAmount().catch(() => 0n),
+          oracle.getRegisteredInfoAgents().catch(() => []),
+          oracle.getRegisteredJudges().catch(() => []),
+        ]);
+        protocolMinStake = minStake;
+        const totalStaked = Object.values(agentBalances).reduce((sum, b) => sum + (b.stake || 0n), 0n);
+        document.getElementById('stat-total-staked').textContent = formatBalance(totalStaked) + ' ETH';
+        document.getElementById('stat-info-count').textContent = infoAgents.length;
+        document.getElementById('stat-judge-count').textContent = judges.length;
+        document.getElementById('stat-min-stake').textContent = formatBalance(minStake) + ' ETH';
+      } catch (e) {
+        console.error('Protocol stats fetch error:', e);
+      }
+    }
 
     async function fetchAgentBalances() {
       const results = {};
@@ -3673,6 +3962,7 @@
       }));
       agentBalances = { ...agentBalances, ...results };
       renderAgentCards(agentBalances);
+      fetchProtocolStats();
     }
 
     // Load agents from manifest, then start polling
