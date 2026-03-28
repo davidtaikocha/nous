@@ -2356,7 +2356,7 @@
         <div class="stat-cell">
           <span class="stat-label">Total Staked</span>
           <span class="stat-value" id="stat-total-staked">--</span>
-          <span class="stat-sub">ETH locked in protocol</span>
+          <span class="stat-sub">TAIKO locked in protocol</span>
         </div>
         <div class="stat-cell">
           <span class="stat-label">Info Agents</span>
@@ -3925,7 +3925,7 @@
           <div class="agent-stake-section">
             <div class="stake-header">
               <span class="stake-label">Staked</span>
-              <span class="stake-amount">${bal ? formatBalance(stakeAmount) : '--'} ETH</span>
+              <span class="stake-amount">${bal ? formatBalance(stakeAmount) : '--'} TAIKO</span>
             </div>
             <div class="stake-bar-track">
               <div class="stake-bar-fill ${healthClass}" style="width: ${barWidth}%;"></div>
@@ -3933,7 +3933,7 @@
             </div>
             <div class="stake-meta">
               <span>${isRegistered ? 'Active in pool' : 'Not registered'}</span>
-              ${protocolMinStake > 0n ? `<span>Min: ${formatBalance(protocolMinStake)} ETH</span>` : ''}
+              ${protocolMinStake > 0n ? `<span>Min: ${formatBalance(protocolMinStake)} TAIKO</span>` : ''}
             </div>
           </div>`;
 
@@ -3971,10 +3971,10 @@
         ]);
         protocolMinStake = minStake;
         const totalStaked = Object.values(agentBalances).reduce((sum, b) => sum + (b.stake || 0n), 0n);
-        document.getElementById('stat-total-staked').textContent = formatBalance(totalStaked) + ' ETH';
+        document.getElementById('stat-total-staked').textContent = formatBalance(totalStaked) + ' TAIKO';
         document.getElementById('stat-info-count').textContent = infoAgents.length;
         document.getElementById('stat-judge-count').textContent = judges.length;
-        document.getElementById('stat-min-stake').textContent = formatBalance(minStake) + ' ETH';
+        document.getElementById('stat-min-stake').textContent = formatBalance(minStake) + ' TAIKO';
       } catch (e) {
         console.error('Protocol stats fetch error:', e);
       }
