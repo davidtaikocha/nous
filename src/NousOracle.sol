@@ -915,7 +915,14 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
         if (disputeUsed[requestId]) revert DisputeAlreadyUsed(requestId);
 
         Request storage req = _requests[requestId];
-        uint256 requiredBond = req.bondAmount * disputeBondMultiplier / 100;
+        uint256 requiredBond;
+        if (req.bondAmount == 0) {
+            // Staking model: use flat dispute bond
+            requiredBond = disputeBondAmount;
+        } else {
+            // Legacy: bondAmount * multiplier
+            requiredBond = req.bondAmount * disputeBondMultiplier / 100;
+        }
 
         if (req.bondToken == address(0)) {
             if (msg.value < requiredBond) revert InsufficientDisputeBond(requiredBond, msg.value);
@@ -987,7 +994,10 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
         _requirePhase(requestId, Phase.DisputeWindow);
         if (block.timestamp >= disputeWindowEnd[requestId]) revert DisputeWindowNotOpen(requestId);
         // Allow direct DAO escalation if only 1 judge (can't dispute — no alternative judge)
-        if (!disputeUsed[requestId] && _judgeList.length > 1) revert DisputeRequired(requestId);
+        Request storage req = _requests[requestId];
+        bool isStakingModel = (req.bondAmount == 0);
+        uint256 judgeCount = isStakingModel ? _registeredJudges.length : _judgeList.length;
+        if (!disputeUsed[requestId] && judgeCount > 1) revert DisputeRequired(requestId);
         if (daoEscalationUsed[requestId]) revert DAOEscalationAlreadyUsed(requestId);
         if (daoAddress == address(0)) revert DAONotSet();
 
@@ -1233,11 +1243,20 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
 
     function _selectDisputeJudge(uint256 requestId) internal {
         address originalJudge = selectedJudge[requestId];
-        uint256 judgeCount = _judgeList.length;
+        Request storage req = _requests[requestId];
+        bool isStakingModel = (req.bondAmount == 0);
+
+        address[] storage judgePool;
+        if (isStakingModel) {
+            judgePool = _registeredJudges;
+        } else {
+            judgePool = _judgeList;
+        }
+        uint256 judgeCount = judgePool.length;
 
         uint256 eligible = 0;
         for (uint256 i; i < judgeCount; ++i) {
-            if (_judgeList[i] != originalJudge) eligible++;
+            if (judgePool[i] != originalJudge) eligible++;
         }
         if (eligible == 0) revert NoDisputeJudgeAvailable(requestId);
 
@@ -1246,9 +1265,9 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
 
         uint256 count = 0;
         for (uint256 i; i < judgeCount; ++i) {
-            if (_judgeList[i] != originalJudge) {
+            if (judgePool[i] != originalJudge) {
                 if (count == pick) {
-                    disputeJudge[requestId] = _judgeList[i];
+                    disputeJudge[requestId] = judgePool[i];
                     return;
                 }
                 count++;

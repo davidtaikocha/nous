@@ -2080,4 +2080,55 @@ contract NousOracleTest is Test {
         assertEq(selected[0].balance, bal0Before + expectedPerWinner);
         assertEq(selected[1].balance, bal1Before + expectedPerWinner);
     }
+
+    // ============ Staking: Dispute Bond Tests ============
+
+    function test_initiateDispute_stakingModel() public {
+        _setupStaking();
+        _registerInfoAgent(agent1);
+        _registerInfoAgent(agent2);
+        _registerJudgeAgent(judge1);
+        _registerJudgeAgent(judge2);
+
+        vm.startPrank(owner);
+        oracle.setDisputeWindow(1 hours);
+        oracle.setDisputeBondMultiplier(150);
+        oracle.setDisputeBondAmount(0.2 ether);
+        vm.stopPrank();
+
+        uint256 requestId = _createStakedRequest(2);
+        address[] memory selected = oracle.getSelectedAgents(requestId);
+
+        bytes memory a1 = abi.encode("sunny");
+        bytes memory a2 = abi.encode("cloudy");
+
+        vm.prank(selected[0]);
+        oracle.commit(requestId, keccak256(abi.encode(a1, uint256(1))));
+        vm.prank(selected[1]);
+        oracle.commit(requestId, keccak256(abi.encode(a2, uint256(2))));
+        vm.prank(selected[0]);
+        oracle.reveal(requestId, a1, 1);
+        vm.prank(selected[1]);
+        oracle.reveal(requestId, a2, 2);
+
+        address judgeAddr = oracle.selectedJudge(requestId);
+        address[] memory winners = new address[](1);
+        winners[0] = selected[0];
+        vm.prank(judgeAddr);
+        oracle.aggregate(requestId, abi.encode("sunny"), winners, abi.encode("better"));
+
+        // Dispute with flat bond (0.2 ether, not bondAmount * multiplier since bondAmount=0)
+        address disputerAddr = makeAddr("disputerStaking");
+        vm.deal(disputerAddr, 1 ether);
+        vm.prank(disputerAddr);
+        oracle.initiateDispute{value: 0.2 ether}(requestId, "Disagree");
+
+        assertEq(oracle.disputeBondPaid(requestId), 0.2 ether);
+        assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.Disputed));
+
+        // Dispute judge should be selected from registered judges (not whitelist)
+        address dJudge = oracle.disputeJudge(requestId);
+        assertTrue(dJudge != address(0));
+        assertTrue(dJudge != judgeAddr); // must be different from original
+    }
 }
