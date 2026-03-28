@@ -1780,4 +1780,69 @@ contract NousOracleTest is Test {
         vm.prank(selectedAgent);
         oracle.requestWithdrawal();
     }
+
+    // ============ Staking: Commit Tests ============
+
+    function test_commit_stakingModel() public {
+        _setupStaking();
+        _registerInfoAgent(agent1);
+        _registerInfoAgent(agent2);
+        _registerJudgeAgent(judge1);
+
+        uint256 requestId = _createStakedRequest(2);
+        address[] memory selected = oracle.getSelectedAgents(requestId);
+
+        // Selected agent can commit without sending ETH
+        bytes32 commitment = keccak256(abi.encode(abi.encode("answer1"), uint256(1)));
+        vm.prank(selected[0]);
+        oracle.commit(requestId, commitment);
+
+        (address[] memory agents, bytes32[] memory hashes) = oracle.getCommits(requestId);
+        assertEq(agents.length, 1);
+        assertEq(agents[0], selected[0]);
+        assertEq(hashes[0], commitment);
+    }
+
+    function test_commit_stakingModel_revertsIfNotSelected() public {
+        _setupStaking();
+        _registerInfoAgent(agent1);
+        _registerInfoAgent(agent2);
+        _registerInfoAgent(agent3);
+        _registerJudgeAgent(judge1);
+
+        uint256 requestId = _createStakedRequest(1); // only 1 selected
+        address[] memory selected = oracle.getSelectedAgents(requestId);
+
+        // Find an agent that was NOT selected
+        address notSelected;
+        if (agent1 != selected[0]) notSelected = agent1;
+        else if (agent2 != selected[0]) notSelected = agent2;
+        else notSelected = agent3;
+
+        vm.expectRevert(abi.encodeWithSelector(NousOracle.NotSelectedForRequest.selector, requestId, notSelected));
+        vm.prank(notSelected);
+        oracle.commit(requestId, keccak256(abi.encode(abi.encode("answer"), uint256(1))));
+    }
+
+    function test_commit_stakingModel_autoTransition() public {
+        _setupStaking();
+        _registerInfoAgent(agent1);
+        _registerInfoAgent(agent2);
+        _registerJudgeAgent(judge1);
+
+        uint256 requestId = _createStakedRequest(2);
+        address[] memory selected = oracle.getSelectedAgents(requestId);
+
+        bytes32 c1 = keccak256(abi.encode(abi.encode("a1"), uint256(1)));
+        bytes32 c2 = keccak256(abi.encode(abi.encode("a2"), uint256(2)));
+
+        vm.prank(selected[0]);
+        oracle.commit(requestId, c1);
+
+        vm.prank(selected[1]);
+        oracle.commit(requestId, c2);
+
+        // Should auto-transition to Revealing
+        assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.Revealing));
+    }
 }

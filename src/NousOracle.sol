@@ -593,18 +593,33 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
             revert AlreadyCommitted(requestId, msg.sender);
         }
 
-        // Collect bond
-        if (req.bondToken == address(0)) {
-            if (msg.value < req.bondAmount) {
-                revert InsufficientPayment(req.bondAmount, msg.value);
+        bool isStakingModel = (req.bondAmount == 0);
+
+        if (isStakingModel) {
+            // Staking model: verify agent was selected
+            bool selected = false;
+            address[] storage selectedList = _selectedAgents[requestId];
+            for (uint256 i; i < selectedList.length; ++i) {
+                if (selectedList[i] == msg.sender) {
+                    selected = true;
+                    break;
+                }
             }
-            uint256 excess = msg.value - req.bondAmount;
-            if (excess > 0) {
-                (bool ok,) = msg.sender.call{value: excess}("");
-                if (!ok) revert TransferFailed();
-            }
+            if (!selected) revert NotSelectedForRequest(requestId, msg.sender);
         } else {
-            IERC20(req.bondToken).safeTransferFrom(msg.sender, address(this), req.bondAmount);
+            // Legacy bond model: collect bond
+            if (req.bondToken == address(0)) {
+                if (msg.value < req.bondAmount) {
+                    revert InsufficientPayment(req.bondAmount, msg.value);
+                }
+                uint256 excess = msg.value - req.bondAmount;
+                if (excess > 0) {
+                    (bool ok,) = msg.sender.call{value: excess}("");
+                    if (!ok) revert TransferFailed();
+                }
+            } else {
+                IERC20(req.bondToken).safeTransferFrom(msg.sender, address(this), req.bondAmount);
+            }
         }
 
         commitments[requestId][msg.sender] = commitment;
