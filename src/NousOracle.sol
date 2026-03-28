@@ -30,6 +30,15 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
         DAOEscalation   // 9
     }
 
+    enum AgentRole { Info, Judge }
+
+    struct AgentStake {
+        uint256 amount;
+        AgentRole role;
+        bool registered;
+        uint256 withdrawRequestTime;
+    }
+
     // ============ Storage ============
 
     /// @notice Next request ID counter.
@@ -131,6 +140,41 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
     /// @notice Per-request dispute window override. 0 = use global default.
     mapping(uint256 => uint256) public requestDisputeWindow;
 
+    // ============ Staking Storage ============
+
+    /// @notice Stake info per agent address.
+    mapping(address => AgentStake) public agentStakes;
+
+    /// @notice Registered info agents pool.
+    address[] internal _registeredInfoAgents;
+
+    /// @notice Registered judges pool.
+    address[] internal _registeredJudges;
+
+    /// @notice Minimum stake required to register.
+    uint256 public minStakeAmount;
+
+    /// @notice Slash percentage in basis points (e.g., 5000 = 50%).
+    uint256 public slashPercentage;
+
+    /// @notice Cooldown duration in seconds before withdrawal completes.
+    uint256 public withdrawalCooldown;
+
+    /// @notice Token used for staking (address(0) = native ETH).
+    address public stakeToken;
+
+    /// @notice Selected info agents per request.
+    mapping(uint256 => address[]) internal _selectedAgents;
+
+    /// @notice Number of active request assignments per agent.
+    mapping(address => uint256) public activeAssignments;
+
+    /// @notice Accumulated slashed stake per request.
+    mapping(uint256 => uint256) public requestSlashedStake;
+
+    /// @notice Flat dispute bond for post-upgrade requests (no bondAmount).
+    uint256 public disputeBondAmount;
+
     // ============ Errors ============
 
     error InvalidPhase(uint256 requestId, Phase expected, Phase actual);
@@ -167,6 +211,21 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
     event DaoAddressUpdated(address oldDao, address newDao);
     event DaoResolutionWindowUpdated(uint256 oldDuration, uint256 newDuration);
 
+    // ============ Staking Events ============
+
+    event AgentRegistered(address indexed agent, AgentRole role, uint256 amount);
+    event StakeAdded(address indexed agent, uint256 amount, uint256 newTotal);
+    event WithdrawalRequested(address indexed agent, uint256 timestamp);
+    event WithdrawalExecuted(address indexed agent, uint256 amount);
+    event WithdrawalCancelled(address indexed agent);
+    event AgentSlashed(address indexed agent, uint256 amount, uint256 remaining);
+    event AgentDeregistered(address indexed agent);
+    event AgentSelected(uint256 indexed requestId, address agent);
+    event MinStakeAmountUpdated(uint256 oldAmount, uint256 newAmount);
+    event SlashPercentageUpdated(uint256 oldPct, uint256 newPct);
+    event WithdrawalCooldownUpdated(uint256 oldDuration, uint256 newDuration);
+    event DisputeBondAmountUpdated(uint256 oldAmount, uint256 newAmount);
+
     // ============ Dispute Errors ============
 
     error DisputeWindowNotOpen(uint256 requestId);
@@ -184,6 +243,21 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
     error DisputeBondMultiplierTooLow(uint256 multiplier);
     error InvalidBondTokenAddress();
     error ETHSentWithERC20Bond();
+
+    // ============ Staking Errors ============
+
+    error AlreadyRegistered(address agent);
+    error NotRegistered(address agent);
+    error InsufficientStake(uint256 required, uint256 provided);
+    error NotSelectedForRequest(uint256 requestId, address agent);
+    error InsufficientRegisteredAgents(uint256 required, uint256 available);
+    error ActiveAssignmentsPending(address agent, uint256 count);
+    error WithdrawalNotRequested(address agent);
+    error WithdrawalCooldownNotElapsed(address agent, uint256 readyAt);
+    error WithdrawalAlreadyRequested(address agent);
+    error StakeBelowMinimum(address agent, uint256 current, uint256 minimum);
+    error SlashPercentageTooHigh(uint256 pct);
+    error NoRegisteredAgents();
 
     // ============ Initializer ============
 
@@ -284,6 +358,86 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
         _requirePhase(requestId, Phase.Committing);
         if (msg.sender != _requests[requestId].requester) revert NotSelectedJudge(requestId, msg.sender); // reuse error: not requester
         requestDisputeWindow[requestId] = duration;
+    }
+
+    // ============ Staking Configuration ============
+
+    /// @notice Set the minimum stake amount.
+    function setMinStakeAmount(uint256 amount) external onlyOwner {
+        uint256 old = minStakeAmount;
+        minStakeAmount = amount;
+        emit MinStakeAmountUpdated(old, amount);
+    }
+
+    /// @notice Set the slash percentage in basis points (max 10000).
+    function setSlashPercentage(uint256 basisPoints) external onlyOwner {
+        if (basisPoints > 10000) revert SlashPercentageTooHigh(basisPoints);
+        uint256 old = slashPercentage;
+        slashPercentage = basisPoints;
+        emit SlashPercentageUpdated(old, basisPoints);
+    }
+
+    /// @notice Set the withdrawal cooldown duration.
+    function setWithdrawalCooldown(uint256 seconds_) external onlyOwner {
+        uint256 old = withdrawalCooldown;
+        withdrawalCooldown = seconds_;
+        emit WithdrawalCooldownUpdated(old, seconds_);
+    }
+
+    /// @notice Set the flat dispute bond amount for post-upgrade requests.
+    function setDisputeBondAmount(uint256 amount) external onlyOwner {
+        uint256 old = disputeBondAmount;
+        disputeBondAmount = amount;
+        emit DisputeBondAmountUpdated(old, amount);
+    }
+
+    // ============ Agent Staking ============
+
+    /// @notice Register as an agent with a stake.
+    /// @param role The agent role (Info or Judge).
+    function registerAgent(AgentRole role) external payable {
+        if (agentStakes[msg.sender].registered) revert AlreadyRegistered(msg.sender);
+
+        uint256 stakeAmount;
+        if (stakeToken == address(0)) {
+            stakeAmount = msg.value;
+        } else {
+            if (msg.value > 0) revert ETHSentWithERC20Bond();
+            stakeAmount = minStakeAmount;
+            IERC20(stakeToken).safeTransferFrom(msg.sender, address(this), stakeAmount);
+        }
+
+        if (stakeAmount < minStakeAmount) revert InsufficientStake(minStakeAmount, stakeAmount);
+
+        agentStakes[msg.sender] = AgentStake({
+            amount: stakeAmount,
+            role: role,
+            registered: true,
+            withdrawRequestTime: 0
+        });
+
+        if (role == AgentRole.Info) {
+            _registeredInfoAgents.push(msg.sender);
+        } else {
+            _registeredJudges.push(msg.sender);
+        }
+
+        emit AgentRegistered(msg.sender, role, stakeAmount);
+    }
+
+    /// @notice Get all registered info agents.
+    function getRegisteredInfoAgents() external view returns (address[] memory) {
+        return _registeredInfoAgents;
+    }
+
+    /// @notice Get all registered judges.
+    function getRegisteredJudges() external view returns (address[] memory) {
+        return _registeredJudges;
+    }
+
+    /// @notice Get selected agents for a request.
+    function getSelectedAgents(uint256 requestId) external view returns (address[] memory) {
+        return _selectedAgents[requestId];
     }
 
     // ============ Core Functions ============

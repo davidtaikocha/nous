@@ -31,6 +31,9 @@ contract NousOracleTest is Test {
     uint256 constant REVEAL_DURATION = 1 hours;
     uint256 constant REWARD = 1 ether;
     uint256 constant BOND = 0.1 ether;
+    uint256 constant MIN_STAKE = 0.5 ether;
+    uint256 constant SLASH_PCT = 5000; // 50% in basis points
+    uint256 constant WITHDRAW_COOLDOWN = 1 days;
 
     function setUp() public {
         // Deploy implementation + proxy
@@ -53,6 +56,14 @@ contract NousOracleTest is Test {
         vm.deal(agent1, 10 ether);
         vm.deal(agent2, 10 ether);
         vm.deal(agent3, 10 ether);
+    }
+
+    function _setupStaking() internal {
+        vm.startPrank(owner);
+        oracle.setMinStakeAmount(MIN_STAKE);
+        oracle.setSlashPercentage(SLASH_PCT);
+        oracle.setWithdrawalCooldown(WITHDRAW_COOLDOWN);
+        vm.stopPrank();
     }
 
     // ============ Helpers ============
@@ -1498,5 +1509,84 @@ contract NousOracleTest is Test {
         // Can distribute
         oracle.distributeRewards(requestId);
         assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.Distributed));
+    }
+
+    // ============ Staking Registration Tests ============
+
+    function test_registerAgent_info() public {
+        _setupStaking();
+
+        vm.prank(agent1);
+        oracle.registerAgent{value: MIN_STAKE}(NousOracle.AgentRole.Info);
+
+        (uint256 amount, NousOracle.AgentRole role, bool registered, uint256 withdrawTime) = oracle.agentStakes(agent1);
+        assertEq(amount, MIN_STAKE);
+        assertEq(uint8(role), uint8(NousOracle.AgentRole.Info));
+        assertTrue(registered);
+        assertEq(withdrawTime, 0);
+
+        address[] memory infoAgents = oracle.getRegisteredInfoAgents();
+        assertEq(infoAgents.length, 1);
+        assertEq(infoAgents[0], agent1);
+    }
+
+    function test_registerAgent_judge() public {
+        _setupStaking();
+
+        vm.deal(judge1, 10 ether);
+        vm.prank(judge1);
+        oracle.registerAgent{value: MIN_STAKE}(NousOracle.AgentRole.Judge);
+
+        (uint256 amount, NousOracle.AgentRole role, bool registered,) = oracle.agentStakes(judge1);
+        assertEq(amount, MIN_STAKE);
+        assertEq(uint8(role), uint8(NousOracle.AgentRole.Judge));
+        assertTrue(registered);
+
+        address[] memory judges = oracle.getRegisteredJudges();
+        assertEq(judges.length, 1);
+        assertEq(judges[0], judge1);
+    }
+
+    function test_registerAgent_revertsIfAlreadyRegistered() public {
+        _setupStaking();
+
+        vm.prank(agent1);
+        oracle.registerAgent{value: MIN_STAKE}(NousOracle.AgentRole.Info);
+
+        vm.expectRevert(abi.encodeWithSelector(NousOracle.AlreadyRegistered.selector, agent1));
+        vm.prank(agent1);
+        oracle.registerAgent{value: MIN_STAKE}(NousOracle.AgentRole.Info);
+    }
+
+    function test_registerAgent_revertsIfBelowMinStake() public {
+        _setupStaking();
+
+        vm.expectRevert(abi.encodeWithSelector(NousOracle.InsufficientStake.selector, MIN_STAKE, 0.1 ether));
+        vm.prank(agent1);
+        oracle.registerAgent{value: 0.1 ether}(NousOracle.AgentRole.Info);
+    }
+
+    function test_setMinStakeAmount() public {
+        vm.prank(owner);
+        oracle.setMinStakeAmount(1 ether);
+        assertEq(oracle.minStakeAmount(), 1 ether);
+    }
+
+    function test_setSlashPercentage() public {
+        vm.prank(owner);
+        oracle.setSlashPercentage(3000);
+        assertEq(oracle.slashPercentage(), 3000);
+    }
+
+    function test_setSlashPercentage_revertsIfTooHigh() public {
+        vm.expectRevert(abi.encodeWithSelector(NousOracle.SlashPercentageTooHigh.selector, 10001));
+        vm.prank(owner);
+        oracle.setSlashPercentage(10001);
+    }
+
+    function test_setWithdrawalCooldown() public {
+        vm.prank(owner);
+        oracle.setWithdrawalCooldown(2 days);
+        assertEq(oracle.withdrawalCooldown(), 2 days);
     }
 }
