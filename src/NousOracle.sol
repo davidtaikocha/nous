@@ -837,40 +837,71 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
         Request storage req = _requests[requestId];
         address[] storage winners = _winners[requestId];
         uint256 numWinners = winners.length;
+        bool isStakingModel = (req.bondAmount == 0);
 
-        uint256 rewardPerWinner = req.rewardAmount / numWinners;
-        uint256 totalSlashed = _calculateSlashedBonds(requestId);
-        uint256 slashPerWinner = numWinners > 0 ? totalSlashed / numWinners : 0;
+        if (isStakingModel) {
+            // Staking model: reward + slashed stake to winners
+            uint256 rewardPerWinner = req.rewardAmount / numWinners;
+            uint256 totalSlashed = requestSlashedStake[requestId];
+            uint256 slashPerWinner = numWinners > 0 ? totalSlashed / numWinners : 0;
 
-        address[] memory winnerList = new address[](numWinners);
-        uint256[] memory amounts = new uint256[](numWinners);
+            address[] memory winnerList = new address[](numWinners);
+            uint256[] memory amounts = new uint256[](numWinners);
 
-        for (uint256 i; i < numWinners; ++i) {
-            address winner = winners[i];
-            winnerList[i] = winner;
+            for (uint256 i; i < numWinners; ++i) {
+                address winner = winners[i];
+                winnerList[i] = winner;
 
-            uint256 totalPayout = rewardPerWinner;
-            if (req.rewardToken == address(0)) {
-                (bool ok,) = winner.call{value: rewardPerWinner}("");
-                if (!ok) revert TransferFailed();
-            } else {
-                IERC20(req.rewardToken).safeTransfer(winner, rewardPerWinner);
+                uint256 totalPayout = rewardPerWinner + slashPerWinner;
+                _transferToken(req.rewardToken, winner, totalPayout);
+                amounts[i] = totalPayout;
             }
 
-            uint256 bondPayout = req.bondAmount + slashPerWinner;
-            totalPayout += bondPayout;
-            if (req.bondToken == address(0)) {
-                (bool ok,) = winner.call{value: bondPayout}("");
-                if (!ok) revert TransferFailed();
-            } else {
-                IERC20(req.bondToken).safeTransfer(winner, bondPayout);
+            // Decrement activeAssignments for revealed agents only.
+            // Non-committers are already decremented in endCommitPhase().
+            // Non-revealers are already decremented in endRevealPhase().
+            for (uint256 i; i < _revealedAgents[requestId].length; ++i) {
+                _decrementAssignment(_revealedAgents[requestId][i]);
             }
 
-            amounts[i] = totalPayout;
+            phases[requestId] = Phase.Distributed;
+            emit RewardsDistributed(requestId, winnerList, amounts);
+        } else {
+            // Legacy bond model (existing logic)
+            uint256 rewardPerWinner = req.rewardAmount / numWinners;
+            uint256 totalSlashed = _calculateSlashedBonds(requestId);
+            uint256 slashPerWinner = numWinners > 0 ? totalSlashed / numWinners : 0;
+
+            address[] memory winnerList = new address[](numWinners);
+            uint256[] memory amounts = new uint256[](numWinners);
+
+            for (uint256 i; i < numWinners; ++i) {
+                address winner = winners[i];
+                winnerList[i] = winner;
+
+                uint256 totalPayout = rewardPerWinner;
+                if (req.rewardToken == address(0)) {
+                    (bool ok,) = winner.call{value: rewardPerWinner}("");
+                    if (!ok) revert TransferFailed();
+                } else {
+                    IERC20(req.rewardToken).safeTransfer(winner, rewardPerWinner);
+                }
+
+                uint256 bondPayout = req.bondAmount + slashPerWinner;
+                totalPayout += bondPayout;
+                if (req.bondToken == address(0)) {
+                    (bool ok,) = winner.call{value: bondPayout}("");
+                    if (!ok) revert TransferFailed();
+                } else {
+                    IERC20(req.bondToken).safeTransfer(winner, bondPayout);
+                }
+
+                amounts[i] = totalPayout;
+            }
+
+            phases[requestId] = Phase.Distributed;
+            emit RewardsDistributed(requestId, winnerList, amounts);
         }
-
-        phases[requestId] = Phase.Distributed;
-        emit RewardsDistributed(requestId, winnerList, amounts);
     }
 
     // ============ Dispute Functions ============
@@ -1090,12 +1121,21 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
     }
 
     function _transitionToJudging(uint256 requestId) internal {
-        // Pseudo-random judge selection from the approved pool
-        uint256 judgeCount = _judgeList.length;
+        Request storage req = _requests[requestId];
+        bool isStakingModel = (req.bondAmount == 0);
+
+        address[] storage judgePool;
+        if (isStakingModel) {
+            judgePool = _registeredJudges;
+        } else {
+            judgePool = _judgeList;
+        }
+
+        uint256 judgeCount = judgePool.length;
         if (judgeCount == 0) revert NoJudgesAvailable();
 
         uint256 seed = uint256(keccak256(abi.encode(blockhash(block.number - 1), requestId)));
-        address judge = _judgeList[seed % judgeCount];
+        address judge = judgePool[seed % judgeCount];
 
         selectedJudge[requestId] = judge;
         phases[requestId] = Phase.Judging;

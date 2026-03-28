@@ -1985,4 +1985,99 @@ contract NousOracleTest is Test {
         assertEq(loserStake, MIN_STAKE - (MIN_STAKE * 9000 / 10000)); // 0.05 ether
         assertFalse(loserRegistered);
     }
+
+    // ============ Staking: Reward Distribution Tests ============
+
+    function test_distributeRewards_stakingModel() public {
+        _setupStaking();
+        _registerInfoAgent(agent1);
+        _registerInfoAgent(agent2);
+        _registerJudgeAgent(judge1);
+
+        vm.startPrank(owner);
+        oracle.setDisputeWindow(1 hours);
+        oracle.setDisputeBondMultiplier(150);
+        vm.stopPrank();
+
+        uint256 requestId = _createStakedRequest(2);
+        address[] memory selected = oracle.getSelectedAgents(requestId);
+
+        bytes memory a1 = abi.encode("sunny");
+        bytes memory a2 = abi.encode("cloudy");
+
+        vm.prank(selected[0]);
+        oracle.commit(requestId, keccak256(abi.encode(a1, uint256(1))));
+        vm.prank(selected[1]);
+        oracle.commit(requestId, keccak256(abi.encode(a2, uint256(2))));
+
+        vm.prank(selected[0]);
+        oracle.reveal(requestId, a1, 1);
+        vm.prank(selected[1]);
+        oracle.reveal(requestId, a2, 2);
+
+        address judgeAddr = oracle.selectedJudge(requestId);
+        address[] memory winners = new address[](1);
+        winners[0] = selected[0];
+        vm.prank(judgeAddr);
+        oracle.aggregate(requestId, abi.encode("sunny"), winners, abi.encode("better"));
+
+        vm.warp(block.timestamp + 1 hours + 1);
+
+        uint256 winnerBalanceBefore = selected[0].balance;
+        oracle.distributeRewards(requestId);
+
+        uint256 expectedSlash = MIN_STAKE * SLASH_PCT / 10000;
+        uint256 expectedPayout = REWARD + expectedSlash;
+        assertEq(selected[0].balance, winnerBalanceBefore + expectedPayout);
+
+        // Both agents should have activeAssignments decremented
+        assertEq(oracle.activeAssignments(selected[0]), 0);
+        assertEq(oracle.activeAssignments(selected[1]), 0);
+
+        assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.Distributed));
+    }
+
+    function test_distributeRewards_stakingModel_multipleWinners() public {
+        _setupStaking();
+        _registerInfoAgent(agent1);
+        _registerInfoAgent(agent2);
+        _registerJudgeAgent(judge1);
+
+        vm.startPrank(owner);
+        oracle.setDisputeWindow(1 hours);
+        vm.stopPrank();
+
+        uint256 requestId = _createStakedRequest(2);
+        address[] memory selected = oracle.getSelectedAgents(requestId);
+
+        bytes memory a1 = abi.encode("sunny");
+        bytes memory a2 = abi.encode("cloudy");
+
+        vm.prank(selected[0]);
+        oracle.commit(requestId, keccak256(abi.encode(a1, uint256(1))));
+        vm.prank(selected[1]);
+        oracle.commit(requestId, keccak256(abi.encode(a2, uint256(2))));
+        vm.prank(selected[0]);
+        oracle.reveal(requestId, a1, 1);
+        vm.prank(selected[1]);
+        oracle.reveal(requestId, a2, 2);
+
+        address judgeAddr = oracle.selectedJudge(requestId);
+        address[] memory winners = new address[](2);
+        winners[0] = selected[0];
+        winners[1] = selected[1];
+        vm.prank(judgeAddr);
+        oracle.aggregate(requestId, abi.encode("sunny"), winners, abi.encode("both good"));
+
+        vm.warp(block.timestamp + 1 hours + 1);
+
+        uint256 bal0Before = selected[0].balance;
+        uint256 bal1Before = selected[1].balance;
+        oracle.distributeRewards(requestId);
+
+        // Both win: reward split, no slashed funds (no losers)
+        uint256 expectedPerWinner = REWARD / 2;
+        assertEq(selected[0].balance, bal0Before + expectedPerWinner);
+        assertEq(selected[1].balance, bal1Before + expectedPerWinner);
+    }
 }
