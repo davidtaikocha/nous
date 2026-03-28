@@ -76,6 +76,12 @@ contract UpgradeScript is Script {
         uint256 withdrawCooldown = vm.envOr("WITHDRAWAL_COOLDOWN", uint256(1 days));
         uint256 flatDisputeBond = vm.envOr("DISPUTE_BOND_AMOUNT", uint256(0.2 ether));
 
+        address stakeTokenAddr = vm.envOr("STAKE_TOKEN", address(0));
+        if (stakeTokenAddr != address(0)) {
+            proxy.setStakeToken(stakeTokenAddr);
+            console.log("Stake token set:", stakeTokenAddr);
+        }
+
         proxy.setMinStakeAmount(minStake);
         console.log("Min stake amount set:", minStake);
 

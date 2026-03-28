@@ -258,6 +258,7 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
     error StakeBelowMinimum(address agent, uint256 current, uint256 minimum);
     error SlashPercentageTooHigh(uint256 pct);
     error NoRegisteredAgents();
+    error RewardTokenMustBeStakeToken(address expected, address provided);
 
     // ============ Initializer ============
 
@@ -389,6 +390,11 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
         uint256 old = disputeBondAmount;
         disputeBondAmount = amount;
         emit DisputeBondAmountUpdated(old, amount);
+    }
+
+    /// @notice Set the stake token address.
+    function setStakeToken(address token_) external onlyOwner {
+        stakeToken = token_;
     }
 
     // ============ Agent Staking ============
@@ -537,6 +543,7 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
                 revert InsufficientRegisteredAgents(numInfoAgents, _registeredInfoAgents.length);
             }
             if (_registeredJudges.length == 0) revert NoJudgesAvailable();
+            if (rewardToken != stakeToken) revert RewardTokenMustBeStakeToken(stakeToken, rewardToken);
         } else {
             if (_judgeList.length == 0) revert NoJudgesAvailable();
         }
@@ -924,7 +931,12 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
             requiredBond = req.bondAmount * disputeBondMultiplier / 100;
         }
 
-        if (req.bondToken == address(0)) {
+        if (req.bondAmount == 0) {
+            // Staking model: collect dispute bond in stakeToken
+            if (msg.value > 0) revert ETHSentWithERC20Bond();
+            IERC20(stakeToken).safeTransferFrom(msg.sender, address(this), requiredBond);
+        } else if (req.bondToken == address(0)) {
+            // Legacy ETH bond
             if (msg.value < requiredBond) revert InsufficientDisputeBond(requiredBond, msg.value);
             uint256 excess = msg.value - requiredBond;
             if (excess > 0) {
@@ -932,6 +944,7 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
                 if (!ok) revert TransferFailed();
             }
         } else {
+            // Legacy ERC-20 bond
             if (msg.value > 0) revert ETHSentWithERC20Bond();
             IERC20(req.bondToken).safeTransferFrom(msg.sender, address(this), requiredBond);
         }
@@ -973,12 +986,14 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
                 }
             }
 
-            _transferToken(req.bondToken, disputer[requestId], bondAmount);
+            address disputeToken = req.bondAmount == 0 ? stakeToken : req.bondToken;
+            _transferToken(disputeToken, disputer[requestId], bondAmount);
 
             _finalAnswers[requestId] = newAnswer;
             _winners[requestId] = newWinners;
         } else {
-            _distributeForfeitedBond(requestId, req.bondToken, bondAmount, req.requester);
+            address disputeToken = req.bondAmount == 0 ? stakeToken : req.bondToken;
+            _distributeForfeitedBond(requestId, disputeToken, bondAmount, req.requester);
         }
 
         phases[requestId] = Phase.DisputeWindow;

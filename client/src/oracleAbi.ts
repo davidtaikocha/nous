@@ -225,4 +225,11 @@ export const oracleAbi = [
     inputs: [],
     outputs: [{ name: '', type: 'uint256' }],
   },
+  {
+    type: 'function',
+    name: 'stakeToken',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'address' }],
+  },
 ] as const;

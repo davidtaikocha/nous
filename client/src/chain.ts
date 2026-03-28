@@ -406,6 +406,35 @@ export function createNousChainClient({
         functionName: 'minStakeAmount',
       })) as bigint;
 
+      // Read stakeToken from contract
+      const stakeTokenAddr = (await publicClient.readContract({
+        address: oracleAddress,
+        abi: oracleAbi,
+        functionName: 'stakeToken',
+      })) as Address;
+
+      // Approve stakeToken if ERC-20
+      if (stakeTokenAddr !== zeroAddress) {
+        const currentAllowance = await publicClient.readContract({
+          address: stakeTokenAddr,
+          abi: erc20Abi,
+          functionName: 'allowance',
+          args: [agentAddress, oracleAddress],
+        });
+        if ((currentAllowance as bigint) < minStake) {
+          const approveHash = await walletClient.writeContract({
+            address: stakeTokenAddr,
+            abi: erc20Abi,
+            functionName: 'approve',
+            args: [oracleAddress, minStake * 10n],
+            chain: walletClient.chain,
+            account: walletClient.account!,
+            gas: DEFAULT_GAS,
+          });
+          await publicClient.waitForTransactionReceipt({ hash: approveHash });
+        }
+      }
+
       const roleEnum = role === 'info' ? 0 : 1;
       const hash = await withRetry(() => walletClient.writeContract({
         address: oracleAddress,
@@ -415,7 +444,7 @@ export function createNousChainClient({
         chain: walletClient.chain,
         account: walletClient.account!,
         gas: DEFAULT_GAS,
-        value: minStake,
+        value: stakeTokenAddr === zeroAddress ? minStake : undefined,
       }));
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
       if (receipt.status === 'reverted') throw new Error(`registerAgent tx ${hash} reverted`);
@@ -423,15 +452,45 @@ export function createNousChainClient({
     },
     async addStake(agentAddress: Address, amount: bigint) {
       const walletClient = getWalletClient(agentAddress);
+
+      // Read stakeToken from contract
+      const stakeTokenAddr = (await publicClient.readContract({
+        address: oracleAddress,
+        abi: oracleAbi,
+        functionName: 'stakeToken',
+      })) as Address;
+
+      // Approve stakeToken if ERC-20
+      if (stakeTokenAddr !== zeroAddress) {
+        const currentAllowance = await publicClient.readContract({
+          address: stakeTokenAddr,
+          abi: erc20Abi,
+          functionName: 'allowance',
+          args: [agentAddress, oracleAddress],
+        });
+        if ((currentAllowance as bigint) < amount) {
+          const approveHash = await walletClient.writeContract({
+            address: stakeTokenAddr,
+            abi: erc20Abi,
+            functionName: 'approve',
+            args: [oracleAddress, amount * 10n],
+            chain: walletClient.chain,
+            account: walletClient.account!,
+            gas: DEFAULT_GAS,
+          });
+          await publicClient.waitForTransactionReceipt({ hash: approveHash });
+        }
+      }
+
       const hash = await withRetry(() => walletClient.writeContract({
         address: oracleAddress,
         abi: oracleAbi,
         functionName: 'addStake',
-        args: [0n],
+        args: [stakeTokenAddr === zeroAddress ? 0n : amount],
         chain: walletClient.chain,
         account: walletClient.account!,
         gas: DEFAULT_GAS,
-        value: amount,
+        value: stakeTokenAddr === zeroAddress ? amount : undefined,
       }));
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
       if (receipt.status === 'reverted') throw new Error(`addStake tx ${hash} reverted`);

@@ -63,6 +63,7 @@ contract NousOracleTest is Test {
         oracle.setMinStakeAmount(MIN_STAKE);
         oracle.setSlashPercentage(SLASH_PCT);
         oracle.setWithdrawalCooldown(WITHDRAW_COOLDOWN);
+        oracle.setStakeToken(address(token));
         vm.stopPrank();
     }
 
@@ -1516,8 +1517,11 @@ contract NousOracleTest is Test {
     function test_registerAgent_info() public {
         _setupStaking();
 
-        vm.prank(agent1);
-        oracle.registerAgent{value: MIN_STAKE}(NousOracle.AgentRole.Info);
+        token.mint(agent1, 10 ether);
+        vm.startPrank(agent1);
+        token.approve(address(oracle), type(uint256).max);
+        oracle.registerAgent(NousOracle.AgentRole.Info);
+        vm.stopPrank();
 
         (uint256 amount, NousOracle.AgentRole role, bool registered, uint256 withdrawTime) = oracle.agentStakes(agent1);
         assertEq(amount, MIN_STAKE);
@@ -1534,8 +1538,11 @@ contract NousOracleTest is Test {
         _setupStaking();
 
         vm.deal(judge1, 10 ether);
-        vm.prank(judge1);
-        oracle.registerAgent{value: MIN_STAKE}(NousOracle.AgentRole.Judge);
+        token.mint(judge1, 10 ether);
+        vm.startPrank(judge1);
+        token.approve(address(oracle), type(uint256).max);
+        oracle.registerAgent(NousOracle.AgentRole.Judge);
+        vm.stopPrank();
 
         (uint256 amount, NousOracle.AgentRole role, bool registered,) = oracle.agentStakes(judge1);
         assertEq(amount, MIN_STAKE);
@@ -1550,20 +1557,28 @@ contract NousOracleTest is Test {
     function test_registerAgent_revertsIfAlreadyRegistered() public {
         _setupStaking();
 
-        vm.prank(agent1);
-        oracle.registerAgent{value: MIN_STAKE}(NousOracle.AgentRole.Info);
+        token.mint(agent1, 10 ether);
+        vm.startPrank(agent1);
+        token.approve(address(oracle), type(uint256).max);
+        oracle.registerAgent(NousOracle.AgentRole.Info);
+        vm.stopPrank();
 
         vm.expectRevert(abi.encodeWithSelector(NousOracle.AlreadyRegistered.selector, agent1));
         vm.prank(agent1);
-        oracle.registerAgent{value: MIN_STAKE}(NousOracle.AgentRole.Info);
+        oracle.registerAgent(NousOracle.AgentRole.Info);
     }
 
     function test_registerAgent_revertsIfBelowMinStake() public {
         _setupStaking();
 
-        vm.expectRevert(abi.encodeWithSelector(NousOracle.InsufficientStake.selector, MIN_STAKE, 0.1 ether));
-        vm.prank(agent1);
-        oracle.registerAgent{value: 0.1 ether}(NousOracle.AgentRole.Info);
+        // With ERC-20 staking, registerAgent takes exactly minStakeAmount via safeTransferFrom.
+        // If the agent doesn't have enough balance, the transfer reverts.
+        token.mint(agent1, 0.1 ether);
+        vm.startPrank(agent1);
+        token.approve(address(oracle), type(uint256).max);
+        vm.expectRevert();
+        oracle.registerAgent(NousOracle.AgentRole.Info);
+        vm.stopPrank();
     }
 
     function test_setMinStakeAmount() public {
@@ -1594,32 +1609,34 @@ contract NousOracleTest is Test {
 
     function test_addStake() public {
         _setupStaking();
+        _registerInfoAgent(agent1);
 
-        vm.prank(agent1);
-        oracle.registerAgent{value: MIN_STAKE}(NousOracle.AgentRole.Info);
-
-        vm.prank(agent1);
-        oracle.addStake{value: 0.5 ether}(0);
+        token.mint(agent1, 10 ether);
+        vm.startPrank(agent1);
+        token.approve(address(oracle), type(uint256).max);
+        oracle.addStake(0.5 ether);
+        vm.stopPrank();
 
         (uint256 amount,,,) = oracle.agentStakes(agent1);
-        assertEq(amount, 1 ether);
+        assertEq(amount, MIN_STAKE + 0.5 ether);
     }
 
     function test_addStake_revertsIfNotRegistered() public {
         _setupStaking();
 
+        token.mint(agent1, 10 ether);
+        vm.startPrank(agent1);
+        token.approve(address(oracle), type(uint256).max);
         vm.expectRevert(abi.encodeWithSelector(NousOracle.NotRegistered.selector, agent1));
-        vm.prank(agent1);
-        oracle.addStake{value: 0.5 ether}(0);
+        oracle.addStake(0.5 ether);
+        vm.stopPrank();
     }
 
     // ============ Withdrawal Tests ============
 
     function test_requestWithdrawal() public {
         _setupStaking();
-
-        vm.prank(agent1);
-        oracle.registerAgent{value: MIN_STAKE}(NousOracle.AgentRole.Info);
+        _registerInfoAgent(agent1);
 
         vm.prank(agent1);
         oracle.requestWithdrawal();
@@ -1634,20 +1651,18 @@ contract NousOracleTest is Test {
 
     function test_executeWithdrawal() public {
         _setupStaking();
-
-        vm.prank(agent1);
-        oracle.registerAgent{value: MIN_STAKE}(NousOracle.AgentRole.Info);
+        _registerInfoAgent(agent1);
 
         vm.prank(agent1);
         oracle.requestWithdrawal();
 
         vm.warp(block.timestamp + WITHDRAW_COOLDOWN + 1);
 
-        uint256 balanceBefore = agent1.balance;
+        uint256 balanceBefore = token.balanceOf(agent1);
         vm.prank(agent1);
         oracle.executeWithdrawal();
 
-        assertEq(agent1.balance, balanceBefore + MIN_STAKE);
+        assertEq(token.balanceOf(agent1), balanceBefore + MIN_STAKE);
 
         (uint256 amount,,, uint256 withdrawTime) = oracle.agentStakes(agent1);
         assertEq(amount, 0);
@@ -1656,9 +1671,7 @@ contract NousOracleTest is Test {
 
     function test_executeWithdrawal_revertsIfCooldownNotElapsed() public {
         _setupStaking();
-
-        vm.prank(agent1);
-        oracle.registerAgent{value: MIN_STAKE}(NousOracle.AgentRole.Info);
+        _registerInfoAgent(agent1);
 
         vm.prank(agent1);
         oracle.requestWithdrawal();
@@ -1670,9 +1683,7 @@ contract NousOracleTest is Test {
 
     function test_cancelWithdrawal() public {
         _setupStaking();
-
-        vm.prank(agent1);
-        oracle.registerAgent{value: MIN_STAKE}(NousOracle.AgentRole.Info);
+        _registerInfoAgent(agent1);
 
         vm.prank(agent1);
         oracle.requestWithdrawal();
@@ -1692,14 +1703,20 @@ contract NousOracleTest is Test {
 
     function _registerInfoAgent(address agent) internal {
         vm.deal(agent, 10 ether);
-        vm.prank(agent);
-        oracle.registerAgent{value: MIN_STAKE}(NousOracle.AgentRole.Info);
+        token.mint(agent, 100 ether);
+        vm.startPrank(agent);
+        token.approve(address(oracle), type(uint256).max);
+        oracle.registerAgent(NousOracle.AgentRole.Info);
+        vm.stopPrank();
     }
 
     function _registerJudgeAgent(address judge) internal {
         vm.deal(judge, 10 ether);
-        vm.prank(judge);
-        oracle.registerAgent{value: MIN_STAKE}(NousOracle.AgentRole.Judge);
+        token.mint(judge, 100 ether);
+        vm.startPrank(judge);
+        token.approve(address(oracle), type(uint256).max);
+        oracle.registerAgent(NousOracle.AgentRole.Judge);
+        vm.stopPrank();
     }
 
     function _createStakedRequest() internal returns (uint256) {
@@ -1707,18 +1724,22 @@ contract NousOracleTest is Test {
     }
 
     function _createStakedRequest(uint256 numAgents) internal returns (uint256) {
-        vm.prank(requester);
-        return oracle.createRequest{value: REWARD}(
+        token.mint(requester, 100 ether);
+        vm.startPrank(requester);
+        token.approve(address(oracle), type(uint256).max);
+        uint256 requestId = oracle.createRequest(
             "What is the weather in Tokyo?",
             numAgents,
             REWARD,
             0, // bondAmount = 0 for staking model
             block.timestamp + 1 hours,
-            address(0),
-            address(0),
+            address(token),  // rewardToken = stakeToken (Taiko)
+            address(0),      // bondToken not used
             "Return JSON with temperature and conditions",
             _defaultCapabilities()
         );
+        vm.stopPrank();
+        return requestId;
     }
 
     // ============ Staking: Agent Selection Tests ============
@@ -1749,8 +1770,22 @@ contract NousOracleTest is Test {
         _registerInfoAgent(agent1);
         _registerJudgeAgent(judge1);
 
+        token.mint(requester, 100 ether);
+        vm.startPrank(requester);
+        token.approve(address(oracle), type(uint256).max);
         vm.expectRevert(abi.encodeWithSelector(NousOracle.InsufficientRegisteredAgents.selector, 2, 1));
-        _createStakedRequest(2);
+        oracle.createRequest(
+            "What is the weather in Tokyo?",
+            2,
+            REWARD,
+            0,
+            block.timestamp + 1 hours,
+            address(token),
+            address(0),
+            "Return JSON with temperature and conditions",
+            _defaultCapabilities()
+        );
+        vm.stopPrank();
     }
 
     function test_createRequest_revertsIfNoRegisteredJudges() public {
@@ -1758,8 +1793,22 @@ contract NousOracleTest is Test {
         _registerInfoAgent(agent1);
         _registerInfoAgent(agent2);
 
+        token.mint(requester, 100 ether);
+        vm.startPrank(requester);
+        token.approve(address(oracle), type(uint256).max);
         vm.expectRevert(NousOracle.NoJudgesAvailable.selector);
-        _createStakedRequest(2);
+        oracle.createRequest(
+            "What is the weather in Tokyo?",
+            2,
+            REWARD,
+            0,
+            block.timestamp + 1 hours,
+            address(token),
+            address(0),
+            "Return JSON with temperature and conditions",
+            _defaultCapabilities()
+        );
+        vm.stopPrank();
     }
 
     function test_requestWithdrawal_revertsIfActiveAssignments() public {
@@ -2023,12 +2072,12 @@ contract NousOracleTest is Test {
 
         vm.warp(block.timestamp + 1 hours + 1);
 
-        uint256 winnerBalanceBefore = selected[0].balance;
+        uint256 winnerBalanceBefore = token.balanceOf(selected[0]);
         oracle.distributeRewards(requestId);
 
         uint256 expectedSlash = MIN_STAKE * SLASH_PCT / 10000;
         uint256 expectedPayout = REWARD + expectedSlash;
-        assertEq(selected[0].balance, winnerBalanceBefore + expectedPayout);
+        assertEq(token.balanceOf(selected[0]), winnerBalanceBefore + expectedPayout);
 
         // Both agents should have activeAssignments decremented
         assertEq(oracle.activeAssignments(selected[0]), 0);
@@ -2071,14 +2120,14 @@ contract NousOracleTest is Test {
 
         vm.warp(block.timestamp + 1 hours + 1);
 
-        uint256 bal0Before = selected[0].balance;
-        uint256 bal1Before = selected[1].balance;
+        uint256 bal0Before = token.balanceOf(selected[0]);
+        uint256 bal1Before = token.balanceOf(selected[1]);
         oracle.distributeRewards(requestId);
 
         // Both win: reward split, no slashed funds (no losers)
         uint256 expectedPerWinner = REWARD / 2;
-        assertEq(selected[0].balance, bal0Before + expectedPerWinner);
-        assertEq(selected[1].balance, bal1Before + expectedPerWinner);
+        assertEq(token.balanceOf(selected[0]), bal0Before + expectedPerWinner);
+        assertEq(token.balanceOf(selected[1]), bal1Before + expectedPerWinner);
     }
 
     // ============ Staking: Dispute Bond Tests ============
@@ -2117,11 +2166,13 @@ contract NousOracleTest is Test {
         vm.prank(judgeAddr);
         oracle.aggregate(requestId, abi.encode("sunny"), winners, abi.encode("better"));
 
-        // Dispute with flat bond (0.2 ether, not bondAmount * multiplier since bondAmount=0)
+        // Dispute with flat bond in stakeToken (0.2 ether, not bondAmount * multiplier since bondAmount=0)
         address disputerAddr = makeAddr("disputerStaking");
-        vm.deal(disputerAddr, 1 ether);
-        vm.prank(disputerAddr);
-        oracle.initiateDispute{value: 0.2 ether}(requestId, "Disagree");
+        token.mint(disputerAddr, 10 ether);
+        vm.startPrank(disputerAddr);
+        token.approve(address(oracle), type(uint256).max);
+        oracle.initiateDispute(requestId, "Disagree");
+        vm.stopPrank();
 
         assertEq(oracle.disputeBondPaid(requestId), 0.2 ether);
         assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.Disputed));
@@ -2180,12 +2231,12 @@ contract NousOracleTest is Test {
         vm.warp(block.timestamp + 1 hours + 1);
 
         // Distribute
-        uint256 winnerBalBefore = selected[0].balance;
+        uint256 winnerBalBefore = token.balanceOf(selected[0]);
         oracle.distributeRewards(requestId);
 
         // Winner gets reward + loser's slashed stake
         uint256 expectedSlash = MIN_STAKE * SLASH_PCT / 10000;
-        assertEq(selected[0].balance, winnerBalBefore + REWARD + expectedSlash);
+        assertEq(token.balanceOf(selected[0]), winnerBalBefore + REWARD + expectedSlash);
 
         // Verify stakes
         (uint256 winnerStake,,,) = oracle.agentStakes(selected[0]);

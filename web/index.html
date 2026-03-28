@@ -2544,6 +2544,8 @@
       'function getRegisteredInfoAgents() view returns (address[])',
       'function getRegisteredJudges() view returns (address[])',
       'function minStakeAmount() view returns (uint256)',
+      'function stakeToken() view returns (address)',
+      'function disputeBondAmount() view returns (uint256)',
     ];
 
     const TAIKO_TOKEN = '0x557f5b2b222f1f59f94682df01d35dd11f37939a';
@@ -2777,8 +2779,23 @@
         return;
       }
 
-      const isNative = !tokenAddress || tokenAddress === ethers.ZeroAddress;
-      const rewardToken = isNative ? ethers.ZeroAddress : ethers.getAddress(tokenAddress);
+      // Staking model: rewardToken must be stakeToken (Taiko ERC-20).
+      // Read stakeToken from contract and use that, ignoring the token selector for staking requests.
+      let rewardToken;
+      try {
+        const contractStakeToken = await oracle.stakeToken();
+        if (contractStakeToken && contractStakeToken !== ethers.ZeroAddress) {
+          rewardToken = ethers.getAddress(contractStakeToken);
+        } else {
+          // Fallback: use user-selected token or native
+          const isNative = !tokenAddress || tokenAddress === ethers.ZeroAddress;
+          rewardToken = isNative ? ethers.ZeroAddress : ethers.getAddress(tokenAddress);
+        }
+      } catch {
+        const isNative = !tokenAddress || tokenAddress === ethers.ZeroAddress;
+        rewardToken = isNative ? ethers.ZeroAddress : ethers.getAddress(tokenAddress);
+      }
+      const isNative = rewardToken === ethers.ZeroAddress;
       const bondToken = ethers.ZeroAddress; // staking model: no per-request bond
 
       const rewardWei = ethers.parseEther(rewardVal);
@@ -3286,10 +3303,35 @@
 
           // Calculate bond
           const req = await oracle.getRequest(requestId);
-          const multiplier = await oracle.disputeBondMultiplier();
-          const requiredBond = req.bondAmount * multiplier / 100n;
+          let requiredBond;
+          if (req.bondAmount === 0n) {
+            // Staking model: use flat dispute bond
+            requiredBond = await oracle.disputeBondAmount();
+          } else {
+            const multiplier = await oracle.disputeBondMultiplier();
+            requiredBond = req.bondAmount * multiplier / 100n;
+          }
 
-          if (req.bondToken === ethers.ZeroAddress) {
+          if (req.bondAmount === 0n) {
+            // Staking model: collect dispute bond in stakeToken (ERC-20)
+            const stakeTokenAddr = await oracle.stakeToken();
+            const token = new ethers.Contract(stakeTokenAddr, ERC20_ABI, walletSigner);
+            const allowance = await token.allowance(walletAddress, ORACLE_ADDRESS);
+            if (allowance < requiredBond) {
+              statusEl.textContent = 'Approving token spend...';
+              statusEl.className = 'action-status';
+              const approveTx = await token.approve(ORACLE_ADDRESS, requiredBond);
+              await approveTx.wait();
+            }
+            statusEl.textContent = 'Sending dispute transaction...';
+            statusEl.className = 'action-status';
+            const tx = await oracleWithSigner.initiateDispute(requestId, onChainReason);
+            statusEl.textContent = `Tx sent: ${shortAddr(tx.hash)}`;
+            await tx.wait();
+            statusEl.textContent = 'Dispute filed!';
+            statusEl.className = 'action-status success';
+          } else if (req.bondToken === ethers.ZeroAddress) {
+            // Legacy ETH bond
             statusEl.textContent = 'Sending dispute transaction...';
             statusEl.className = 'action-status';
             const tx = await oracleWithSigner.initiateDispute(requestId, onChainReason, { value: requiredBond });
@@ -3298,7 +3340,7 @@
             statusEl.textContent = 'Dispute filed!';
             statusEl.className = 'action-status success';
           } else {
-            // ERC-20 bond
+            // Legacy ERC-20 bond
             const token = new ethers.Contract(req.bondToken, ERC20_ABI, walletSigner);
             const allowance = await token.allowance(walletAddress, ORACLE_ADDRESS);
             if (allowance < requiredBond) {
