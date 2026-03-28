@@ -2131,4 +2131,74 @@ contract NousOracleTest is Test {
         assertTrue(dJudge != address(0));
         assertTrue(dJudge != judgeAddr); // must be different from original
     }
+
+    // ============ Staking: Full E2E Test ============
+
+    function test_fullFlow_stakingModel() public {
+        _setupStaking();
+
+        // Register agents
+        _registerInfoAgent(agent1);
+        _registerInfoAgent(agent2);
+        _registerInfoAgent(agent3);
+        _registerJudgeAgent(judge1);
+        _registerJudgeAgent(judge2);
+
+        vm.startPrank(owner);
+        oracle.setDisputeWindow(1 hours);
+        oracle.setDisputeBondMultiplier(150);
+        oracle.setDisputeBondAmount(0.2 ether);
+        vm.stopPrank();
+
+        // Create request (selects 2 agents)
+        uint256 requestId = _createStakedRequest(2);
+        address[] memory selected = oracle.getSelectedAgents(requestId);
+        assertEq(selected.length, 2);
+
+        // Both commit (no bond needed)
+        bytes memory a1 = abi.encode("sunny, 27C");
+        bytes memory a2 = abi.encode("partly cloudy, 26C");
+        vm.prank(selected[0]);
+        oracle.commit(requestId, keccak256(abi.encode(a1, uint256(111))));
+        vm.prank(selected[1]);
+        oracle.commit(requestId, keccak256(abi.encode(a2, uint256(222))));
+
+        // Both reveal
+        vm.prank(selected[0]);
+        oracle.reveal(requestId, a1, 111);
+        vm.prank(selected[1]);
+        oracle.reveal(requestId, a2, 222);
+
+        // Judge aggregates (picks selected[0] as winner)
+        address judgeAddr = oracle.selectedJudge(requestId);
+        address[] memory winners = new address[](1);
+        winners[0] = selected[0];
+        vm.prank(judgeAddr);
+        oracle.aggregate(requestId, a1, winners, abi.encode("more accurate"));
+
+        // Dispute window passes
+        vm.warp(block.timestamp + 1 hours + 1);
+
+        // Distribute
+        uint256 winnerBalBefore = selected[0].balance;
+        oracle.distributeRewards(requestId);
+
+        // Winner gets reward + loser's slashed stake
+        uint256 expectedSlash = MIN_STAKE * SLASH_PCT / 10000;
+        assertEq(selected[0].balance, winnerBalBefore + REWARD + expectedSlash);
+
+        // Verify stakes
+        (uint256 winnerStake,,,) = oracle.agentStakes(selected[0]);
+        assertEq(winnerStake, MIN_STAKE); // untouched
+
+        (uint256 loserStake,,,) = oracle.agentStakes(selected[1]);
+        assertEq(loserStake, MIN_STAKE - expectedSlash); // slashed
+
+        // Active assignments cleared
+        assertEq(oracle.activeAssignments(selected[0]), 0);
+        assertEq(oracle.activeAssignments(selected[1]), 0);
+
+        // Phase is distributed
+        assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.Distributed));
+    }
 }
