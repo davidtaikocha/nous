@@ -19,6 +19,10 @@ import {NousOracle} from "../src/NousOracle.sol";
 ///   DAO_ESCALATION_BOND_TOKEN   — Taiko ERC-20 address (default: skip)
 ///   DAO_ESCALATION_BOND         — wei amount (default: skip)
 ///   DAO_RESOLUTION_WINDOW       — seconds (default: 604800 = 7 days)
+///   MIN_STAKE_AMOUNT            — wei (default: 0.5 ether)
+///   SLASH_PERCENTAGE            — basis points (default: 5000 = 50%)
+///   WITHDRAWAL_COOLDOWN         — seconds (default: 86400 = 1 day)
+///   DISPUTE_BOND_AMOUNT         — wei (default: 0.2 ether)
 contract UpgradeScript is Script {
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
@@ -65,6 +69,24 @@ contract UpgradeScript is Script {
         } else {
             console.log("DAO_ADDRESS not set - skipping DAO escalation config");
         }
+
+        // 5. Configure staking parameters
+        uint256 minStake = vm.envOr("MIN_STAKE_AMOUNT", uint256(0.5 ether));
+        uint256 slashPct = vm.envOr("SLASH_PERCENTAGE", uint256(5000));
+        uint256 withdrawCooldown = vm.envOr("WITHDRAWAL_COOLDOWN", uint256(1 days));
+        uint256 flatDisputeBond = vm.envOr("DISPUTE_BOND_AMOUNT", uint256(0.2 ether));
+
+        proxy.setMinStakeAmount(minStake);
+        console.log("Min stake amount set:", minStake);
+
+        proxy.setSlashPercentage(slashPct);
+        console.log("Slash percentage set:", slashPct);
+
+        proxy.setWithdrawalCooldown(withdrawCooldown);
+        console.log("Withdrawal cooldown set:", withdrawCooldown);
+
+        proxy.setDisputeBondAmount(flatDisputeBond);
+        console.log("Dispute bond amount set:", flatDisputeBond);
 
         vm.stopBroadcast();
     }
