@@ -643,11 +643,38 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
         if (block.timestamp <= req.deadline) revert DeadlineNotPassed();
 
         if (_committedAgents[requestId].length == 0) {
+            // Slash all selected agents for not committing (staking model)
+            if (req.bondAmount == 0) {
+                address[] storage selected = _selectedAgents[requestId];
+                for (uint256 i; i < selected.length; ++i) {
+                    _slashAgent(selected[i]);
+                    _decrementAssignment(selected[i]);
+                }
+            }
             // No agents committed — fail and refund requester
             phases[requestId] = Phase.Failed;
             _refundRequester(requestId);
             emit ResolutionFailed(requestId, "No agents committed");
             return;
+        }
+
+        // Slash non-committing selected agents (staking model only)
+        if (req.bondAmount == 0) {
+            address[] storage selected = _selectedAgents[requestId];
+            for (uint256 i; i < selected.length; ++i) {
+                bool didCommit = false;
+                for (uint256 j; j < _committedAgents[requestId].length; ++j) {
+                    if (selected[i] == _committedAgents[requestId][j]) {
+                        didCommit = true;
+                        break;
+                    }
+                }
+                if (!didCommit) {
+                    uint256 slashed = _slashAgent(selected[i]);
+                    requestSlashedStake[requestId] += slashed;
+                    _decrementAssignment(selected[i]);
+                }
+            }
         }
 
         phases[requestId] = Phase.Revealing;
@@ -691,17 +718,52 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
 
         if (block.timestamp <= revealDeadlines[requestId]) revert DeadlineNotPassed();
 
+        Request storage req = _requests[requestId];
         uint256 committed = _committedAgents[requestId].length;
         uint256 revealed = _revealedAgents[requestId].length;
         uint256 quorum = (committed / 2) + 1; // 50% + 1
 
         if (revealed < quorum) {
-            // Quorum not met — fail, refund requester, return bonds to revealers
             phases[requestId] = Phase.Failed;
             _refundRequester(requestId);
-            _refundRevealedAgentBonds(requestId);
+            if (req.bondAmount == 0) {
+                // Staking model: slash non-revealers, decrement all
+                for (uint256 i; i < _committedAgents[requestId].length; ++i) {
+                    address agent = _committedAgents[requestId][i];
+                    if (!hasRevealed[requestId][agent]) {
+                        _slashAgent(agent);
+                    }
+                    _decrementAssignment(agent);
+                }
+                // Also decrement non-committers among selected
+                address[] storage selected = _selectedAgents[requestId];
+                for (uint256 i; i < selected.length; ++i) {
+                    bool didCommit = false;
+                    for (uint256 j; j < _committedAgents[requestId].length; ++j) {
+                        if (selected[i] == _committedAgents[requestId][j]) {
+                            didCommit = true;
+                            break;
+                        }
+                    }
+                    if (!didCommit) _decrementAssignment(selected[i]);
+                }
+            } else {
+                _refundRevealedAgentBonds(requestId);
+            }
             emit ResolutionFailed(requestId, "Quorum not met");
             return;
+        }
+
+        // Slash non-revealers (staking model only)
+        if (req.bondAmount == 0) {
+            for (uint256 i; i < _committedAgents[requestId].length; ++i) {
+                address agent = _committedAgents[requestId][i];
+                if (!hasRevealed[requestId][agent]) {
+                    uint256 slashed = _slashAgent(agent);
+                    requestSlashedStake[requestId] += slashed;
+                    _decrementAssignment(agent);
+                }
+            }
         }
 
         _transitionToJudging(requestId);
@@ -731,6 +793,26 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
         _finalAnswers[requestId] = finalAnswer;
         _reasoning[requestId] = reasoning;
         _winners[requestId] = winners;
+
+        // Slash losers (staking model only)
+        Request storage req = _requests[requestId];
+        if (req.bondAmount == 0) {
+            for (uint256 i; i < _revealedAgents[requestId].length; ++i) {
+                address agent = _revealedAgents[requestId][i];
+                bool isWinner = false;
+                for (uint256 j; j < winners.length; ++j) {
+                    if (agent == winners[j]) {
+                        isWinner = true;
+                        break;
+                    }
+                }
+                if (!isWinner) {
+                    uint256 slashed = _slashAgent(agent);
+                    requestSlashedStake[requestId] += slashed;
+                }
+            }
+        }
+
         phases[requestId] = Phase.DisputeWindow;
         disputeWindowEnd[requestId] = block.timestamp + _effectiveDisputeWindow(requestId);
 
@@ -1157,6 +1239,37 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
             _selectedAgents[requestId].push(pool[i]);
             activeAssignments[pool[i]] += 1;
             emit AgentSelected(requestId, pool[i]);
+        }
+    }
+
+    /// @dev Slash an agent's stake by slashPercentage. Returns the slashed amount.
+    function _slashAgent(address agent) internal returns (uint256 slashed) {
+        AgentStake storage stake = agentStakes[agent];
+        if (stake.amount == 0) return 0;
+
+        slashed = stake.amount * slashPercentage / 10000;
+        stake.amount -= slashed;
+
+        emit AgentSlashed(agent, slashed, stake.amount);
+
+        // Auto-deregister if below minimum
+        if (stake.amount < minStakeAmount && stake.registered) {
+            stake.registered = false;
+            if (stake.role == AgentRole.Info) {
+                _removeFromArray(_registeredInfoAgents, agent);
+            } else {
+                _removeFromArray(_registeredJudges, agent);
+            }
+            emit AgentDeregistered(agent);
+        }
+
+        return slashed;
+    }
+
+    /// @dev Decrement active assignments for an agent.
+    function _decrementAssignment(address agent) internal {
+        if (activeAssignments[agent] > 0) {
+            activeAssignments[agent] -= 1;
         }
     }
 

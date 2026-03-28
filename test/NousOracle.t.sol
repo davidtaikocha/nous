@@ -1845,4 +1845,144 @@ contract NousOracleTest is Test {
         // Should auto-transition to Revealing
         assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.Revealing));
     }
+
+    // ============ Staking: Slashing Tests ============
+
+    function test_slash_noCommit() public {
+        _setupStaking();
+        _registerInfoAgent(agent1);
+        _registerInfoAgent(agent2);
+        _registerJudgeAgent(judge1);
+
+        uint256 requestId = _createStakedRequest(2);
+        address[] memory selected = oracle.getSelectedAgents(requestId);
+
+        // Only selected[0] commits
+        bytes32 commitment = keccak256(abi.encode(abi.encode("answer"), uint256(1)));
+        vm.prank(selected[0]);
+        oracle.commit(requestId, commitment);
+
+        // Deadline passes
+        vm.warp(block.timestamp + 1 hours + 1);
+        oracle.endCommitPhase(requestId);
+
+        // Non-committing agent slashed
+        (uint256 remainingStake,,,) = oracle.agentStakes(selected[1]);
+        uint256 expectedSlash = MIN_STAKE * SLASH_PCT / 10000;
+        assertEq(remainingStake, MIN_STAKE - expectedSlash);
+
+        // Slashed amount accumulated
+        assertEq(oracle.requestSlashedStake(requestId), expectedSlash);
+    }
+
+    function test_slash_noReveal() public {
+        _setupStaking();
+        _registerInfoAgent(agent1);
+        _registerInfoAgent(agent2);
+        _registerJudgeAgent(judge1);
+
+        uint256 requestId = _createStakedRequest(2);
+        address[] memory selected = oracle.getSelectedAgents(requestId);
+
+        bytes memory a1 = abi.encode("sunny");
+        bytes memory a2 = abi.encode("cloudy");
+
+        vm.prank(selected[0]);
+        oracle.commit(requestId, keccak256(abi.encode(a1, uint256(1))));
+        vm.prank(selected[1]);
+        oracle.commit(requestId, keccak256(abi.encode(a2, uint256(2))));
+
+        // Only first reveals
+        vm.prank(selected[0]);
+        oracle.reveal(requestId, a1, 1);
+
+        // Reveal deadline passes
+        vm.warp(block.timestamp + 1 hours + 1);
+        oracle.endRevealPhase(requestId);
+
+        (uint256 remainingStake,,,) = oracle.agentStakes(selected[1]);
+        uint256 expectedSlash = MIN_STAKE * SLASH_PCT / 10000;
+        assertEq(remainingStake, MIN_STAKE - expectedSlash);
+    }
+
+    function test_slash_loser() public {
+        _setupStaking();
+        _registerInfoAgent(agent1);
+        _registerInfoAgent(agent2);
+        _registerJudgeAgent(judge1);
+
+        uint256 requestId = _createStakedRequest(2);
+        address[] memory selected = oracle.getSelectedAgents(requestId);
+
+        bytes memory a1 = abi.encode("sunny");
+        bytes memory a2 = abi.encode("cloudy");
+
+        vm.prank(selected[0]);
+        oracle.commit(requestId, keccak256(abi.encode(a1, uint256(1))));
+        vm.prank(selected[1]);
+        oracle.commit(requestId, keccak256(abi.encode(a2, uint256(2))));
+
+        vm.prank(selected[0]);
+        oracle.reveal(requestId, a1, 1);
+        vm.prank(selected[1]);
+        oracle.reveal(requestId, a2, 2);
+
+        address judgeAddr = oracle.selectedJudge(requestId);
+        address[] memory winners = new address[](1);
+        winners[0] = selected[0];
+
+        vm.prank(judgeAddr);
+        oracle.aggregate(requestId, abi.encode("sunny"), winners, abi.encode("better"));
+
+        // Loser slashed
+        (uint256 loserStake,,,) = oracle.agentStakes(selected[1]);
+        uint256 expectedSlash = MIN_STAKE * SLASH_PCT / 10000;
+        assertEq(loserStake, MIN_STAKE - expectedSlash);
+
+        // Winner untouched
+        (uint256 winnerStake,,,) = oracle.agentStakes(selected[0]);
+        assertEq(winnerStake, MIN_STAKE);
+
+        // Slashed amount accumulated
+        assertEq(oracle.requestSlashedStake(requestId), expectedSlash);
+    }
+
+    function test_slash_autoDeregisterBelowMinimum() public {
+        _setupStaking();
+
+        // Set high slash percentage so agent drops below minimum
+        vm.prank(owner);
+        oracle.setSlashPercentage(9000); // 90%
+
+        _registerInfoAgent(agent1);
+        _registerInfoAgent(agent2);
+        _registerInfoAgent(agent3); // Need 3rd to keep pool for future
+        _registerJudgeAgent(judge1);
+
+        uint256 requestId = _createStakedRequest(2);
+        address[] memory selected = oracle.getSelectedAgents(requestId);
+
+        // Both commit, both reveal
+        bytes memory a1 = abi.encode("sunny");
+        bytes memory a2 = abi.encode("cloudy");
+        vm.prank(selected[0]);
+        oracle.commit(requestId, keccak256(abi.encode(a1, uint256(1))));
+        vm.prank(selected[1]);
+        oracle.commit(requestId, keccak256(abi.encode(a2, uint256(2))));
+        vm.prank(selected[0]);
+        oracle.reveal(requestId, a1, 1);
+        vm.prank(selected[1]);
+        oracle.reveal(requestId, a2, 2);
+
+        address judgeAddr = oracle.selectedJudge(requestId);
+        address[] memory winners = new address[](1);
+        winners[0] = selected[0];
+        vm.prank(judgeAddr);
+        oracle.aggregate(requestId, abi.encode("sunny"), winners, abi.encode("better"));
+
+        // Loser should be auto-deregistered (90% slash: 0.5 * 0.9 = 0.45, remaining = 0.05 < 0.5 min)
+        (uint256 loserStake,, bool loserRegistered,) = oracle.agentStakes(selected[1]);
+        assertEq(loserStake, MIN_STAKE - (MIN_STAKE * 9000 / 10000)); // 0.05 ether
+        assertFalse(loserRegistered);
+    }
 }
