@@ -425,6 +425,80 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
         emit AgentRegistered(msg.sender, role, stakeAmount);
     }
 
+    /// @notice Add more stake to an existing registration.
+    /// @param amount Amount to add (only used for ERC-20 stakeToken; for ETH, use msg.value).
+    function addStake(uint256 amount) external payable {
+        AgentStake storage stake = agentStakes[msg.sender];
+        if (!stake.registered && stake.withdrawRequestTime == 0) revert NotRegistered(msg.sender);
+
+        uint256 added;
+        if (stakeToken == address(0)) {
+            added = msg.value;
+        } else {
+            if (msg.value > 0) revert ETHSentWithERC20Bond();
+            added = amount;
+            IERC20(stakeToken).safeTransferFrom(msg.sender, address(this), added);
+        }
+
+        stake.amount += added;
+        emit StakeAdded(msg.sender, added, stake.amount);
+    }
+
+    /// @notice Request withdrawal of stake. Immediately removes from selection pool.
+    function requestWithdrawal() external {
+        AgentStake storage stake = agentStakes[msg.sender];
+        if (!stake.registered) revert NotRegistered(msg.sender);
+        if (stake.withdrawRequestTime != 0) revert WithdrawalAlreadyRequested(msg.sender);
+        if (activeAssignments[msg.sender] > 0) {
+            revert ActiveAssignmentsPending(msg.sender, activeAssignments[msg.sender]);
+        }
+
+        stake.withdrawRequestTime = block.timestamp;
+        stake.registered = false;
+
+        if (stake.role == AgentRole.Info) {
+            _removeFromArray(_registeredInfoAgents, msg.sender);
+        } else {
+            _removeFromArray(_registeredJudges, msg.sender);
+        }
+
+        emit WithdrawalRequested(msg.sender, block.timestamp);
+    }
+
+    /// @notice Execute withdrawal after cooldown period.
+    function executeWithdrawal() external {
+        AgentStake storage stake = agentStakes[msg.sender];
+        if (stake.withdrawRequestTime == 0) revert WithdrawalNotRequested(msg.sender);
+        uint256 readyAt = stake.withdrawRequestTime + withdrawalCooldown;
+        if (block.timestamp < readyAt) revert WithdrawalCooldownNotElapsed(msg.sender, readyAt);
+
+        uint256 amount = stake.amount;
+        stake.amount = 0;
+        stake.withdrawRequestTime = 0;
+
+        _transferToken(stakeToken, msg.sender, amount);
+
+        emit WithdrawalExecuted(msg.sender, amount);
+    }
+
+    /// @notice Cancel a pending withdrawal and re-enter the pool.
+    function cancelWithdrawal() external {
+        AgentStake storage stake = agentStakes[msg.sender];
+        if (stake.withdrawRequestTime == 0) revert WithdrawalNotRequested(msg.sender);
+        if (stake.amount < minStakeAmount) revert StakeBelowMinimum(msg.sender, stake.amount, minStakeAmount);
+
+        stake.withdrawRequestTime = 0;
+        stake.registered = true;
+
+        if (stake.role == AgentRole.Info) {
+            _registeredInfoAgents.push(msg.sender);
+        } else {
+            _registeredJudges.push(msg.sender);
+        }
+
+        emit WithdrawalCancelled(msg.sender);
+    }
+
     /// @notice Get all registered info agents.
     function getRegisteredInfoAgents() external view returns (address[] memory) {
         return _registeredInfoAgents;
@@ -1027,6 +1101,18 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
                     return;
                 }
                 count++;
+            }
+        }
+    }
+
+    /// @dev Remove an address from a dynamic array by swapping with last element.
+    function _removeFromArray(address[] storage arr, address addr) internal {
+        uint256 len = arr.length;
+        for (uint256 i; i < len; ++i) {
+            if (arr[i] == addr) {
+                arr[i] = arr[len - 1];
+                arr.pop();
+                return;
             }
         }
     }

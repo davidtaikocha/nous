@@ -1589,4 +1589,102 @@ contract NousOracleTest is Test {
         oracle.setWithdrawalCooldown(2 days);
         assertEq(oracle.withdrawalCooldown(), 2 days);
     }
+
+    // ============ Stake Top-Up Tests ============
+
+    function test_addStake() public {
+        _setupStaking();
+
+        vm.prank(agent1);
+        oracle.registerAgent{value: MIN_STAKE}(NousOracle.AgentRole.Info);
+
+        vm.prank(agent1);
+        oracle.addStake{value: 0.5 ether}(0);
+
+        (uint256 amount,,,) = oracle.agentStakes(agent1);
+        assertEq(amount, 1 ether);
+    }
+
+    function test_addStake_revertsIfNotRegistered() public {
+        _setupStaking();
+
+        vm.expectRevert(abi.encodeWithSelector(NousOracle.NotRegistered.selector, agent1));
+        vm.prank(agent1);
+        oracle.addStake{value: 0.5 ether}(0);
+    }
+
+    // ============ Withdrawal Tests ============
+
+    function test_requestWithdrawal() public {
+        _setupStaking();
+
+        vm.prank(agent1);
+        oracle.registerAgent{value: MIN_STAKE}(NousOracle.AgentRole.Info);
+
+        vm.prank(agent1);
+        oracle.requestWithdrawal();
+
+        (,, bool registered, uint256 withdrawTime) = oracle.agentStakes(agent1);
+        assertFalse(registered);
+        assertGt(withdrawTime, 0);
+
+        address[] memory infoAgents = oracle.getRegisteredInfoAgents();
+        assertEq(infoAgents.length, 0);
+    }
+
+    function test_executeWithdrawal() public {
+        _setupStaking();
+
+        vm.prank(agent1);
+        oracle.registerAgent{value: MIN_STAKE}(NousOracle.AgentRole.Info);
+
+        vm.prank(agent1);
+        oracle.requestWithdrawal();
+
+        vm.warp(block.timestamp + WITHDRAW_COOLDOWN + 1);
+
+        uint256 balanceBefore = agent1.balance;
+        vm.prank(agent1);
+        oracle.executeWithdrawal();
+
+        assertEq(agent1.balance, balanceBefore + MIN_STAKE);
+
+        (uint256 amount,,, uint256 withdrawTime) = oracle.agentStakes(agent1);
+        assertEq(amount, 0);
+        assertEq(withdrawTime, 0);
+    }
+
+    function test_executeWithdrawal_revertsIfCooldownNotElapsed() public {
+        _setupStaking();
+
+        vm.prank(agent1);
+        oracle.registerAgent{value: MIN_STAKE}(NousOracle.AgentRole.Info);
+
+        vm.prank(agent1);
+        oracle.requestWithdrawal();
+
+        vm.expectRevert();
+        vm.prank(agent1);
+        oracle.executeWithdrawal();
+    }
+
+    function test_cancelWithdrawal() public {
+        _setupStaking();
+
+        vm.prank(agent1);
+        oracle.registerAgent{value: MIN_STAKE}(NousOracle.AgentRole.Info);
+
+        vm.prank(agent1);
+        oracle.requestWithdrawal();
+
+        vm.prank(agent1);
+        oracle.cancelWithdrawal();
+
+        (,, bool registered, uint256 withdrawTime) = oracle.agentStakes(agent1);
+        assertTrue(registered);
+        assertEq(withdrawTime, 0);
+
+        address[] memory infoAgents = oracle.getRegisteredInfoAgents();
+        assertEq(infoAgents.length, 1);
+    }
 }
