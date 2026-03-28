@@ -530,7 +530,16 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
     ) external payable returns (uint256 requestId) {
         if (deadline <= block.timestamp) revert DeadlineMustBeFuture();
         if (numInfoAgents == 0) revert NumInfoAgentsMustBePositive();
-        if (_judgeList.length == 0) revert NoJudgesAvailable();
+
+        bool isStakingModel = (bondAmount == 0);
+        if (isStakingModel) {
+            if (_registeredInfoAgents.length < numInfoAgents) {
+                revert InsufficientRegisteredAgents(numInfoAgents, _registeredInfoAgents.length);
+            }
+            if (_registeredJudges.length == 0) revert NoJudgesAvailable();
+        } else {
+            if (_judgeList.length == 0) revert NoJudgesAvailable();
+        }
 
         // Collect reward from requester
         if (rewardToken == address(0)) {
@@ -562,6 +571,11 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
         req.requiredCapabilities = requiredCapabilities;
 
         phases[requestId] = Phase.Committing;
+
+        // Select agents if using staking model
+        if (isStakingModel) {
+            _selectInfoAgents(requestId, numInfoAgents);
+        }
 
         emit RequestCreated(requestId, msg.sender, query, rewardAmount, numInfoAgents, bondAmount);
     }
@@ -1102,6 +1116,32 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
                 }
                 count++;
             }
+        }
+    }
+
+    /// @dev Pseudo-randomly select N info agents from the registered pool.
+    function _selectInfoAgents(uint256 requestId, uint256 count) internal {
+        uint256 poolSize = _registeredInfoAgents.length;
+
+        // Copy pool to memory for Fisher-Yates shuffle
+        address[] memory pool = new address[](poolSize);
+        for (uint256 i; i < poolSize; ++i) {
+            pool[i] = _registeredInfoAgents[i];
+        }
+
+        for (uint256 i; i < count; ++i) {
+            uint256 remaining = poolSize - i;
+            uint256 seed = uint256(keccak256(abi.encode(blockhash(block.number - 1), requestId, i)));
+            uint256 pick = i + (seed % remaining);
+
+            // Swap picked element to position i
+            address temp = pool[i];
+            pool[i] = pool[pick];
+            pool[pick] = temp;
+
+            _selectedAgents[requestId].push(pool[i]);
+            activeAssignments[pool[i]] += 1;
+            emit AgentSelected(requestId, pool[i]);
         }
     }
 

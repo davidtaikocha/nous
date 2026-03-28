@@ -1687,4 +1687,97 @@ contract NousOracleTest is Test {
         address[] memory infoAgents = oracle.getRegisteredInfoAgents();
         assertEq(infoAgents.length, 1);
     }
+
+    // ============ Staking Helpers ============
+
+    function _registerInfoAgent(address agent) internal {
+        vm.deal(agent, 10 ether);
+        vm.prank(agent);
+        oracle.registerAgent{value: MIN_STAKE}(NousOracle.AgentRole.Info);
+    }
+
+    function _registerJudgeAgent(address judge) internal {
+        vm.deal(judge, 10 ether);
+        vm.prank(judge);
+        oracle.registerAgent{value: MIN_STAKE}(NousOracle.AgentRole.Judge);
+    }
+
+    function _createStakedRequest() internal returns (uint256) {
+        return _createStakedRequest(2);
+    }
+
+    function _createStakedRequest(uint256 numAgents) internal returns (uint256) {
+        vm.prank(requester);
+        return oracle.createRequest{value: REWARD}(
+            "What is the weather in Tokyo?",
+            numAgents,
+            REWARD,
+            0, // bondAmount = 0 for staking model
+            block.timestamp + 1 hours,
+            address(0),
+            address(0),
+            "Return JSON with temperature and conditions",
+            _defaultCapabilities()
+        );
+    }
+
+    // ============ Staking: Agent Selection Tests ============
+
+    function test_createRequest_selectsAgents() public {
+        _setupStaking();
+        _registerInfoAgent(agent1);
+        _registerInfoAgent(agent2);
+        _registerInfoAgent(agent3);
+        _registerJudgeAgent(judge1);
+
+        uint256 requestId = _createStakedRequest(2);
+
+        address[] memory selected = oracle.getSelectedAgents(requestId);
+        assertEq(selected.length, 2);
+
+        // Each selected agent should have activeAssignments incremented
+        uint256 totalAssignments;
+        for (uint256 i; i < selected.length; i++) {
+            assertEq(oracle.activeAssignments(selected[i]), 1);
+            totalAssignments++;
+        }
+        assertEq(totalAssignments, 2);
+    }
+
+    function test_createRequest_revertsIfInsufficientRegisteredAgents() public {
+        _setupStaking();
+        _registerInfoAgent(agent1);
+        _registerJudgeAgent(judge1);
+
+        vm.expectRevert(abi.encodeWithSelector(NousOracle.InsufficientRegisteredAgents.selector, 2, 1));
+        _createStakedRequest(2);
+    }
+
+    function test_createRequest_revertsIfNoRegisteredJudges() public {
+        _setupStaking();
+        _registerInfoAgent(agent1);
+        _registerInfoAgent(agent2);
+
+        vm.expectRevert(NousOracle.NoJudgesAvailable.selector);
+        _createStakedRequest(2);
+    }
+
+    function test_requestWithdrawal_revertsIfActiveAssignments() public {
+        _setupStaking();
+        _registerInfoAgent(agent1);
+        _registerInfoAgent(agent2);
+        _registerJudgeAgent(judge1);
+
+        _createStakedRequest(2);
+
+        // Find which agent was selected
+        // Both agents registered so at least one will be selected
+        // Try agent1 first - if not selected, agent2 must be
+        bool agent1Selected = oracle.activeAssignments(agent1) > 0;
+        address selectedAgent = agent1Selected ? agent1 : agent2;
+
+        vm.expectRevert(abi.encodeWithSelector(NousOracle.ActiveAssignmentsPending.selector, selectedAgent, 1));
+        vm.prank(selectedAgent);
+        oracle.requestWithdrawal();
+    }
 }
