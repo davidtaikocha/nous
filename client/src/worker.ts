@@ -164,6 +164,11 @@ export function createWorker({
     let remainingSlots = Number(context.request.numInfoAgents - BigInt(context.committedAgents.length));
     logger.info(`[req=${context.requestId}] Committing: ${context.committedAgents.length}/${context.request.numInfoAgents} agents committed, ${remainingSlots} slots remaining`);
 
+    const isStakingModel = context.request.bondAmount === 0n;
+    const selectedSet = isStakingModel
+      ? new Set(context.selectedAgents.map(lower))
+      : null;
+
     for (const agent of infoAgents) {
       if (remainingSlots <= 0) {
         logger.info(`[req=${context.requestId}] All slots filled, skipping ${agent.address}`);
@@ -171,6 +176,11 @@ export function createWorker({
       }
       if (committed.has(lower(agent.address))) {
         logger.info(`[req=${context.requestId}] Agent ${agent.address} already committed, skipping`);
+        continue;
+      }
+
+      if (selectedSet && !selectedSet.has(lower(agent.address))) {
+        logger.info(`[req=${context.requestId}] Agent ${agent.address} not selected for this request, skipping`);
         continue;
       }
 
@@ -364,6 +374,38 @@ export function createWorker({
       await processRequest(requestId, { includeInfo: false, includeJudge: true });
     },
     async startup() {
+      logger.info('[startup] Checking agent registration...');
+
+      for (const agent of infoAgents) {
+        const stake = await chain.getAgentStake(agent.address);
+        if (!stake.registered) {
+          logger.info(`[startup] Agent ${agent.address} not registered, registering as info agent...`);
+          try {
+            const hash = await chain.registerAgent(agent.address, 'info');
+            logger.info(`[startup] Agent ${agent.address} registered: ${hash}`);
+          } catch (err) {
+            logger.error(`[startup] Failed to register ${agent.address}: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        } else {
+          logger.info(`[startup] Agent ${agent.address} already registered (stake=${stake.amount})`);
+        }
+      }
+
+      for (const judge of judgeAgents) {
+        const stake = await chain.getAgentStake(judge.address);
+        if (!stake.registered) {
+          logger.info(`[startup] Judge ${judge.address} not registered, registering as judge...`);
+          try {
+            const hash = await chain.registerAgent(judge.address, 'judge');
+            logger.info(`[startup] Judge ${judge.address} registered: ${hash}`);
+          } catch (err) {
+            logger.error(`[startup] Failed to register ${judge.address}: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        } else {
+          logger.info(`[startup] Judge ${judge.address} already registered (stake=${stake.amount})`);
+        }
+      }
+
       logger.info('[startup] Scanning for pending work...');
       const activeRequestIds = await chain.listActiveRequestIds();
 
