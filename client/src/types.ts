@@ -1,5 +1,16 @@
 import type { Address, Hex } from 'viem';
 
+export type AgentRole = 'info' | 'judge';
+
+export interface AgentStakeInfo {
+  address: Address;
+  amount: bigint;
+  role: AgentRole;
+  registered: boolean;
+  withdrawRequestTime: bigint;
+  activeAssignments: bigint;
+}
+
 export type PhaseName =
   | 'none'
   | 'committing'
@@ -42,6 +53,7 @@ export interface RequestContext {
   revealDeadline: bigint;
   finalized: boolean;
   finalAnswer: Hex;
+  selectedAgents: Address[];
 }
 
 export interface InfoAgentResult {

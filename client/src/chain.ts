@@ -78,6 +78,15 @@ export interface NousChainClient {
   endCommitPhase(requestId: bigint): Promise<Hex>;
   endRevealPhase(requestId: bigint): Promise<Hex>;
   distributeRewards(requestId: bigint): Promise<Hex>;
+  registerAgent(agentAddress: Address, role: 'info' | 'judge'): Promise<Hex>;
+  addStake(agentAddress: Address, amount: bigint): Promise<Hex>;
+  requestWithdrawal(agentAddress: Address): Promise<Hex>;
+  executeWithdrawal(agentAddress: Address): Promise<Hex>;
+  getAgentStake(agentAddress: Address): Promise<{ amount: bigint; role: number; registered: boolean; withdrawRequestTime: bigint }>;
+  getSelectedAgents(requestId: bigint): Promise<Address[]>;
+  getRegisteredInfoAgents(): Promise<Address[]>;
+  getRegisteredJudges(): Promise<Address[]>;
+  getMinStakeAmount(): Promise<bigint>;
 }
 
 function normalizeRequest(raw: RawRequest): OracleRequest {
@@ -178,7 +187,7 @@ export function createNousChainClient({
   }
 
   async function getRequestContext(requestId: bigint): Promise<RequestContext> {
-    const [phaseIndex, request, commits, reveals, selectedJudge, revealDeadline, resolution] =
+    const [phaseIndex, request, commits, reveals, selectedJudge, revealDeadline, resolution, selectedAgents] =
       await Promise.all([
         publicClient.readContract({
           address: oracleAddress,
@@ -217,6 +226,12 @@ export function createNousChainClient({
           functionName: 'getResolution',
           args: [requestId],
         }),
+        publicClient.readContract({
+          address: oracleAddress,
+          abi: oracleAbi,
+          functionName: 'getSelectedAgents',
+          args: [requestId],
+        }),
       ]);
 
     const [committedAgents, commitHashes] = commits as [Address[], Hex[]];
@@ -235,6 +250,7 @@ export function createNousChainClient({
       revealDeadline: BigInt(revealDeadline as bigint | number),
       finalized,
       finalAnswer,
+      selectedAgents: (selectedAgents as Address[]).map((a) => getAddress(a)),
     };
   }
 
@@ -266,9 +282,10 @@ export function createNousChainClient({
     async commit(agentAddress, requestId, commitment) {
       const request = await getRequest(requestId);
       const walletClient = getWalletClient(agentAddress);
+      const isStakingModel = request.bondAmount === 0n;
 
-      // Approve ERC-20 bond token if needed
-      if (request.bondToken !== zeroAddress && request.bondAmount > 0n) {
+      if (!isStakingModel && request.bondToken !== zeroAddress && request.bondAmount > 0n) {
+        // Legacy bond model: approve ERC-20 (existing logic)
         const currentAllowance = await publicClient.readContract({
           address: request.bondToken,
           abi: erc20Abi,
@@ -281,7 +298,7 @@ export function createNousChainClient({
             address: request.bondToken,
             abi: erc20Abi,
             functionName: 'approve',
-            args: [oracleAddress, request.bondAmount * 10n], // approve 10x to avoid repeated approvals
+            args: [oracleAddress, request.bondAmount * 10n],
             chain: walletClient.chain,
             account: walletClient.account!,
             gas: DEFAULT_GAS,
@@ -300,7 +317,7 @@ export function createNousChainClient({
         chain: walletClient.chain,
         account: walletClient.account!,
         gas: DEFAULT_GAS,
-        value: request.bondToken === zeroAddress ? request.bondAmount : undefined,
+        value: (!isStakingModel && request.bondToken === zeroAddress) ? request.bondAmount : undefined,
       }));
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
       if (receipt.status === 'reverted') throw new Error(`commit tx ${hash} reverted`);
@@ -380,6 +397,117 @@ export function createNousChainClient({
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
       if (receipt.status === 'reverted') throw new Error(`distributeRewards tx ${hash} reverted`);
       return hash;
+    },
+    async registerAgent(agentAddress: Address, role: 'info' | 'judge') {
+      const walletClient = getWalletClient(agentAddress);
+      const minStake = (await publicClient.readContract({
+        address: oracleAddress,
+        abi: oracleAbi,
+        functionName: 'minStakeAmount',
+      })) as bigint;
+
+      const roleEnum = role === 'info' ? 0 : 1;
+      const hash = await withRetry(() => walletClient.writeContract({
+        address: oracleAddress,
+        abi: oracleAbi,
+        functionName: 'registerAgent',
+        args: [roleEnum],
+        chain: walletClient.chain,
+        account: walletClient.account!,
+        gas: DEFAULT_GAS,
+        value: minStake,
+      }));
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      if (receipt.status === 'reverted') throw new Error(`registerAgent tx ${hash} reverted`);
+      return hash;
+    },
+    async addStake(agentAddress: Address, amount: bigint) {
+      const walletClient = getWalletClient(agentAddress);
+      const hash = await withRetry(() => walletClient.writeContract({
+        address: oracleAddress,
+        abi: oracleAbi,
+        functionName: 'addStake',
+        args: [0n],
+        chain: walletClient.chain,
+        account: walletClient.account!,
+        gas: DEFAULT_GAS,
+        value: amount,
+      }));
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      if (receipt.status === 'reverted') throw new Error(`addStake tx ${hash} reverted`);
+      return hash;
+    },
+    async requestWithdrawal(agentAddress: Address) {
+      const walletClient = getWalletClient(agentAddress);
+      const hash = await withRetry(() => walletClient.writeContract({
+        address: oracleAddress,
+        abi: oracleAbi,
+        functionName: 'requestWithdrawal',
+        args: [],
+        chain: walletClient.chain,
+        account: walletClient.account!,
+        gas: DEFAULT_GAS,
+      }));
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      if (receipt.status === 'reverted') throw new Error(`requestWithdrawal tx ${hash} reverted`);
+      return hash;
+    },
+    async executeWithdrawal(agentAddress: Address) {
+      const walletClient = getWalletClient(agentAddress);
+      const hash = await withRetry(() => walletClient.writeContract({
+        address: oracleAddress,
+        abi: oracleAbi,
+        functionName: 'executeWithdrawal',
+        args: [],
+        chain: walletClient.chain,
+        account: walletClient.account!,
+        gas: DEFAULT_GAS,
+      }));
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      if (receipt.status === 'reverted') throw new Error(`executeWithdrawal tx ${hash} reverted`);
+      return hash;
+    },
+    async getAgentStake(agentAddress: Address) {
+      const result = await publicClient.readContract({
+        address: oracleAddress,
+        abi: oracleAbi,
+        functionName: 'agentStakes',
+        args: [agentAddress],
+      });
+      const [amount, role, registered, withdrawRequestTime] = result as [bigint, number, boolean, bigint];
+      return { amount, role, registered, withdrawRequestTime };
+    },
+    async getSelectedAgents(requestId: bigint) {
+      const result = await publicClient.readContract({
+        address: oracleAddress,
+        abi: oracleAbi,
+        functionName: 'getSelectedAgents',
+        args: [requestId],
+      });
+      return (result as Address[]).map((a) => getAddress(a));
+    },
+    async getRegisteredInfoAgents() {
+      const result = await publicClient.readContract({
+        address: oracleAddress,
+        abi: oracleAbi,
+        functionName: 'getRegisteredInfoAgents',
+      });
+      return (result as Address[]).map((a) => getAddress(a));
+    },
+    async getRegisteredJudges() {
+      const result = await publicClient.readContract({
+        address: oracleAddress,
+        abi: oracleAbi,
+        functionName: 'getRegisteredJudges',
+      });
+      return (result as Address[]).map((a) => getAddress(a));
+    },
+    async getMinStakeAmount() {
+      return (await publicClient.readContract({
+        address: oracleAddress,
+        abi: oracleAbi,
+        functionName: 'minStakeAmount',
+      })) as bigint;
     },
   };
 }
