@@ -2236,9 +2236,9 @@
           <label id="reward-label">Reward (TAIKO)</label>
           <input type="text" id="setting-reward" value="0" placeholder="10">
         </div>
-        <div class="setting-group">
+        <div class="setting-group" style="display:none;">
           <label id="bond-label">Bond (TAIKO)</label>
-          <input type="text" id="setting-bond" value="0" placeholder="1">
+          <input type="text" id="setting-bond" value="0" placeholder="0">
         </div>
         <div class="setting-group">
           <label>Deadline (min)</label>
@@ -2329,6 +2329,11 @@
       'function initiateDispute(uint256 requestId, string reason) payable',
       'function initiateDAOEscalation(uint256 requestId)',
       'function distributeRewards(uint256 requestId)',
+      'function agentStakes(address) view returns (uint256 amount, uint8 role, bool registered, uint256 withdrawRequestTime)',
+      'function getSelectedAgents(uint256 requestId) view returns (address[])',
+      'function getRegisteredInfoAgents() view returns (address[])',
+      'function getRegisteredJudges() view returns (address[])',
+      'function minStakeAmount() view returns (uint256)',
     ];
 
     const TAIKO_TOKEN = '0x557f5b2b222f1f59f94682df01d35dd11f37939a';
@@ -2524,7 +2529,6 @@
       const symbol = select.value === 'custom' ? 'Token' :
                      select.value === ethers.ZeroAddress ? 'ETH' : 'TAIKO';
       document.getElementById('reward-label').textContent = `Reward (${symbol})`;
-      document.getElementById('bond-label').textContent = `Bond (${symbol})`;
     }
 
     // ── Chatbox ──
@@ -2552,7 +2556,6 @@
 
       const numAgents = parseInt(document.getElementById('setting-agents').value) || 2;
       const rewardVal = document.getElementById('setting-reward').value || '0';
-      const bondVal = document.getElementById('setting-bond').value || '0';
       const deadlineMin = parseInt(document.getElementById('setting-deadline').value) || 10;
       const specs = document.getElementById('setting-specs').value || '';
       const domain = document.getElementById('setting-domain').value || '';
@@ -2566,10 +2569,10 @@
 
       const isNative = !tokenAddress || tokenAddress === ethers.ZeroAddress;
       const rewardToken = isNative ? ethers.ZeroAddress : ethers.getAddress(tokenAddress);
-      const bondToken = rewardToken; // same token for both
+      const bondToken = ethers.ZeroAddress; // staking model: no per-request bond
 
       const rewardWei = ethers.parseEther(rewardVal);
-      const bondWei = ethers.parseEther(bondVal);
+      const bondWei = 0n; // staking model: no per-request bond
       const deadline = BigInt(Math.floor(Date.now() / 1000) + deadlineMin * 60);
 
       const useIpfs = document.getElementById('setting-ipfs').value === 'ipfs';
@@ -3154,7 +3157,7 @@
       for (let id = 1n; id < nextId; id++) ids.push(id);
 
       const results = await Promise.allSettled(ids.map(async (id) => {
-        const [phaseIndex, req, commits, reveals, resolution, judge, revealDeadline, perRequestDW] = await Promise.all([
+        const [phaseIndex, req, commits, reveals, resolution, judge, revealDeadline, perRequestDW, selectedAgents] = await Promise.all([
           oracle.phases(id),
           oracle.getRequest(id),
           oracle.getCommits(id),
@@ -3163,6 +3166,7 @@
           oracle.selectedJudge(id),
           oracle.revealDeadlines(id),
           oracle.requestDisputeWindow(id),
+          oracle.getSelectedAgents(id).catch(() => []),
         ]);
 
         let reasoning = null;
@@ -3239,6 +3243,7 @@
           winners,
           disputeInfo,
           perRequestDisputeWindow: perRequestDW,
+          selectedAgents,
         };
       }));
 
@@ -3330,6 +3335,7 @@
         finalized: r.finalized,
         disputeUsed: r.disputeInfo?.disputeUsed,
         daoUsed: r.disputeInfo?.daoUsed,
+        selectedAgents: r.selectedAgents?.length || 0,
       })));
 
       if (!forceRender && currentHash === lastRequestsHash) return;
@@ -3500,10 +3506,16 @@
                   <div class="meta-label">Reward</div>
                   <div class="meta-value">${formatTokenAmount(req.rewardAmount, rewardSymbol)}</div>
                 </div>
+                ${req.bondAmount > 0n ? `
                 <div class="meta-item">
                   <div class="meta-label">Bond</div>
                   <div class="meta-value">${formatTokenAmount(req.bondAmount, bondSymbol)}</div>
-                </div>
+                </div>` : ''}
+                ${r.selectedAgents && r.selectedAgents.length > 0 ? `
+                <div class="meta-item">
+                  <div class="meta-label">Selected Agents</div>
+                  <div class="meta-value mono" style="font-size: 0.7rem;">${r.selectedAgents.map(a => agentDisplayName(a)).join(', ')}</div>
+                </div>` : ''}
                 <div class="meta-item">
                   <div class="meta-label">Commit Deadline</div>
                   <div class="meta-value" data-countdown="${req.deadline}">${timeRemaining(req.deadline)}</div>
@@ -3613,6 +3625,12 @@
                <span class="balance-chip shimmer-inline shimmer">loading</span>
              </div>`;
 
+        const stakeHtml = bal && bal.stake !== undefined
+          ? `<div style="font-size: 0.75rem; color: #aaa; margin-top: 4px;">
+               Stake: ${formatBalance(bal.stake)} ETH${bal.stakeRegistered ? '' : ' (not registered)'}
+             </div>`
+          : '';
+
         return `
           <div class="agent-card">
             <div class="agent-avatar ${agent.role}">${avatarLabel}</div>
@@ -3623,6 +3641,7 @@
               <span class="agent-role-badge ${agent.role}">Role: ${agent.role === 'judge' ? 'Judge' : 'Info'}</span>
               <span class="agent-role-badge ${(agent.specialty || 'general') === 'general' ? 'general' : 'specialty'}" style="margin-left:4px;">Specialty: ${agent.specialty || 'general'}</span>
               ${balancesHtml}
+              ${stakeHtml}
             </div>
           </div>`;
       }).join('');
@@ -3638,7 +3657,16 @@
             provider.getBalance(agent.address),
             taikoToken.balanceOf(agent.address),
           ]);
-          results[agent.address] = { eth, taiko };
+          let stake = 0n;
+          let stakeRegistered = false;
+          try {
+            const stakeInfo = await oracle.agentStakes(agent.address);
+            stake = stakeInfo[0];
+            stakeRegistered = stakeInfo[2];
+          } catch (e) {
+            // agentStakes may not exist on older contracts
+          }
+          results[agent.address] = { eth, taiko, stake, stakeRegistered };
         } catch (err) {
           console.error(`Balance fetch error for ${agent.id}:`, err);
         }
