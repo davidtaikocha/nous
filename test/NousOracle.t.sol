@@ -921,8 +921,15 @@ contract NousOracleTest is Test {
 
         vm.prank(requester);
         uint256 requestId = oracle.createRequest(
-            "Test", 2, REWARD, BOND, block.timestamp + 1 hours,
-            address(token), address(token), "", _defaultCapabilities()
+            "Test",
+            2,
+            REWARD,
+            BOND,
+            block.timestamp + 1 hours,
+            address(token),
+            address(token),
+            "",
+            _defaultCapabilities()
         );
 
         bytes memory a1 = abi.encode("sunny");
@@ -1480,7 +1487,9 @@ contract NousOracleTest is Test {
         vm.deal(disputerAddr, 1 ether);
 
         vm.prank(disputerAddr);
-        vm.expectRevert(abi.encodeWithSelector(NousOracle.InsufficientDisputeBond.selector, disputeBondRequired, 0.01 ether));
+        vm.expectRevert(
+            abi.encodeWithSelector(NousOracle.InsufficientDisputeBond.selector, disputeBondRequired, 0.01 ether)
+        );
         oracle.initiateDispute{value: 0.01 ether}(requestId, "Underfunded");
     }
 
@@ -1830,8 +1839,8 @@ contract NousOracleTest is Test {
             REWARD,
             0, // bondAmount = 0 for staking model
             block.timestamp + 1 hours,
-            address(token),  // rewardToken = stakeToken (Taiko)
-            address(0),      // bondToken not used
+            address(token), // rewardToken = stakeToken (Taiko)
+            address(0), // bondToken not used
             "Return JSON with temperature and conditions",
             _defaultCapabilities()
         );

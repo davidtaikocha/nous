@@ -18,19 +18,23 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
     // ============ Enums ============
 
     enum Phase {
-        None,           // 0
-        Committing,     // 1
-        Revealing,      // 2
-        Judging,        // 3
-        Finalized,      // 4  (legacy — kept for UUPS compat, no longer entered post-upgrade)
-        Distributed,    // 5
-        Failed,         // 6
-        DisputeWindow,  // 7
-        Disputed,       // 8
-        DAOEscalation   // 9
+        None, // 0
+        Committing, // 1
+        Revealing, // 2
+        Judging, // 3
+        Finalized, // 4  (legacy — kept for UUPS compat, no longer entered post-upgrade)
+        Distributed, // 5
+        Failed, // 6
+        DisputeWindow, // 7
+        Disputed, // 8
+        DAOEscalation // 9
+
     }
 
-    enum AgentRole { Info, Judge }
+    enum AgentRole {
+        Info,
+        Judge
+    }
 
     struct AgentStake {
         uint256 amount;
@@ -431,12 +435,8 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
 
         if (stakeAmount < minStakeAmount) revert InsufficientStake(minStakeAmount, stakeAmount);
 
-        agentStakes[msg.sender] = AgentStake({
-            amount: stakeAmount,
-            role: role,
-            registered: true,
-            withdrawRequestTime: 0
-        });
+        agentStakes[msg.sender] =
+            AgentStake({amount: stakeAmount, role: role, registered: true, withdrawRequestTime: 0});
 
         if (role == AgentRole.Info) {
             _registeredInfoAgents.push(msg.sender);
@@ -884,7 +884,10 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
                     if (restoreAmount > 0) {
                         agentStakes[agent].amount += restoreAmount;
                         // Re-register if eligible
-                        if (agentStakes[agent].amount >= minStakeAmount && !agentStakes[agent].registered && agentStakes[agent].withdrawRequestTime == 0) {
+                        if (
+                            agentStakes[agent].amount >= minStakeAmount && !agentStakes[agent].registered
+                                && agentStakes[agent].withdrawRequestTime == 0
+                        ) {
                             agentStakes[agent].registered = true;
                             if (agentStakes[agent].role == AgentRole.Info) {
                                 _registeredInfoAgents.push(agent);
@@ -903,7 +906,9 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
 
                 // Return DAO escalation bond if used
                 if (daoEscalationUsed[requestId] && daoEscalationBondPaid[requestId] > 0) {
-                    IERC20(daoEscalationBondToken).safeTransfer(daoEscalator[requestId], daoEscalationBondPaid[requestId]);
+                    IERC20(daoEscalationBondToken).safeTransfer(
+                        daoEscalator[requestId], daoEscalationBondPaid[requestId]
+                    );
                 }
 
                 // Decrement active assignments for all revealed agents
@@ -1033,12 +1038,10 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
     /// @param overturn True to overturn the original decision.
     /// @param newAnswer New final answer (only used if overturn=true).
     /// @param newWinners New winners (only used if overturn=true).
-    function resolveDispute(
-        uint256 requestId,
-        bool overturn,
-        bytes calldata newAnswer,
-        address[] calldata newWinners
-    ) external nonReentrant {
+    function resolveDispute(uint256 requestId, bool overturn, bytes calldata newAnswer, address[] calldata newWinners)
+        external
+        nonReentrant
+    {
         _requirePhase(requestId, Phase.Disputed);
         if (msg.sender != disputeJudge[requestId]) revert NotDisputeJudge(requestId, msg.sender);
 
@@ -1173,10 +1176,7 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
         _requirePhase(requestId, Phase.DAOEscalation);
         if (block.timestamp <= daoEscalationDeadline[requestId]) revert DAODeadlineNotPassed(requestId);
 
-        IERC20(daoEscalationBondToken).safeTransfer(
-            daoEscalator[requestId],
-            daoEscalationBondPaid[requestId]
-        );
+        IERC20(daoEscalationBondToken).safeTransfer(daoEscalator[requestId], daoEscalationBondPaid[requestId]);
 
         phases[requestId] = Phase.DisputeWindow;
         disputeWindowEnd[requestId] = block.timestamp;
@@ -1333,12 +1333,9 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
     }
 
     /// @dev Distribute a forfeited bond: 50% to current winners (split equally), 50% to requester.
-    function _distributeForfeitedBond(
-        uint256 requestId,
-        address token_,
-        uint256 bondAmount,
-        address requesterAddr
-    ) internal {
+    function _distributeForfeitedBond(uint256 requestId, address token_, uint256 bondAmount, address requesterAddr)
+        internal
+    {
         uint256 requesterShare = bondAmount / 2;
         uint256 winnersTotal = bondAmount - requesterShare;
         address[] storage winners = _winners[requestId];
