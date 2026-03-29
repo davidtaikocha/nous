@@ -232,4 +232,18 @@ export const oracleAbi = [
     inputs: [],
     outputs: [{ name: '', type: 'address' }],
   },
+  {
+    type: 'function',
+    name: 'judgeToSlash',
+    stateMutability: 'view',
+    inputs: [{ name: 'requestId', type: 'uint256' }],
+    outputs: [{ name: '', type: 'address' }],
+  },
+  {
+    type: 'function',
+    name: 'slashBeneficiary',
+    stateMutability: 'view',
+    inputs: [{ name: 'requestId', type: 'uint256' }],
+    outputs: [{ name: '', type: 'address' }],
+  },
 ] as const;
