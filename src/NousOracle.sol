@@ -28,7 +28,6 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
         DisputeWindow, // 7
         Disputed, // 8
         DAOEscalation // 9
-
     }
 
     enum AgentRole {
@@ -906,9 +905,8 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
 
                 // Return DAO escalation bond if used
                 if (daoEscalationUsed[requestId] && daoEscalationBondPaid[requestId] > 0) {
-                    IERC20(daoEscalationBondToken).safeTransfer(
-                        daoEscalator[requestId], daoEscalationBondPaid[requestId]
-                    );
+                    IERC20(daoEscalationBondToken)
+                        .safeTransfer(daoEscalator[requestId], daoEscalationBondPaid[requestId]);
                 }
 
                 // Decrement active assignments for all revealed agents

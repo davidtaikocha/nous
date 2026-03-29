@@ -81,10 +81,7 @@ interface IAgentCouncilOracle {
 
     function getRequest(uint256 requestId) external view returns (Request memory);
 
-    function getCommits(uint256 requestId)
-        external
-        view
-        returns (address[] memory agents, bytes32[] memory commitments);
+    function getCommits(uint256 requestId) external view returns (address[] memory agents, bytes32[] memory commitments);
 
     function getReveals(uint256 requestId) external view returns (address[] memory agents, bytes[] memory answers);
 }
