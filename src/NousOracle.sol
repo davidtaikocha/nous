@@ -1054,22 +1054,24 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
 
     /// @notice Resolve a DAO escalation. Called by the DAO address.
     /// @param requestId The escalated request.
-    /// @param overturn True to overturn the current decision.
-    /// @param newAnswer New final answer (only used if overturn=true).
-    /// @param newWinners New winners (only used if overturn=true).
+    /// @param outcome 0 = uphold, 1 = overturn, 2 = inconclusive.
+    /// @param newAnswer New final answer (only used if outcome=1).
+    /// @param newWinners New winners (only used if outcome=1).
     function resolveDAOEscalation(
         uint256 requestId,
-        bool overturn,
+        uint8 outcome,
         bytes calldata newAnswer,
         address[] calldata newWinners
     ) external nonReentrant {
         _requirePhase(requestId, Phase.DAOEscalation);
         if (msg.sender != daoAddress) revert NotDAO(msg.sender);
         if (block.timestamp > daoEscalationDeadline[requestId]) revert DAOResolutionTimedOut(requestId);
+        if (outcome > 2) revert InvalidDAOOutcome(outcome);
 
         uint256 bondAmount = daoEscalationBondPaid[requestId];
 
-        if (overturn) {
+        if (outcome == 1) {
+            // Overturn
             if (newWinners.length == 0) revert NoWinners();
             for (uint256 i; i < newWinners.length; ++i) {
                 if (!hasRevealed[requestId][newWinners[i]]) {
@@ -1081,9 +1083,30 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
 
             _finalAnswers[requestId] = newAnswer;
             _winners[requestId] = newWinners;
-        } else {
+
+            // Slash dispute judge (who made the wrong call)
+            judgeToSlash[requestId] = disputeJudge[requestId];
+            slashBeneficiary[requestId] = daoEscalator[requestId];
+        } else if (outcome == 0) {
+            // Uphold
             Request storage req = _requests[requestId];
             _distributeForfeitedBond(requestId, daoEscalationBondToken, bondAmount, req.requester);
+
+            // If judgeToSlash was set from a prior dispute overturn, keep it
+            // Set beneficiary to escalator if not already set
+            if (slashBeneficiary[requestId] == address(0)) {
+                slashBeneficiary[requestId] = daoEscalator[requestId];
+            }
+        } else {
+            // Inconclusive (outcome == 2)
+            IERC20(daoEscalationBondToken).safeTransfer(daoEscalator[requestId], bondAmount);
+
+            // Clear winners to signal inconclusive
+            delete _winners[requestId];
+
+            // No judge slash on inconclusive
+            judgeToSlash[requestId] = address(0);
+            slashBeneficiary[requestId] = address(0);
         }
 
         phases[requestId] = Phase.DisputeWindow;

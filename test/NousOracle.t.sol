@@ -1213,7 +1213,7 @@ contract NousOracleTest is Test {
         uint256 requesterTokenBefore = taikoToken.balanceOf(requester);
 
         vm.prank(dao);
-        oracle.resolveDAOEscalation(requestId, false, "", new address[](0));
+        oracle.resolveDAOEscalation(requestId, 0, "", new address[](0));
 
         assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.DisputeWindow));
         assertLe(oracle.disputeWindowEnd(requestId), block.timestamp);
@@ -1236,7 +1236,7 @@ contract NousOracleTest is Test {
         newWinners[0] = agent2;
 
         vm.prank(dao);
-        oracle.resolveDAOEscalation(requestId, true, abi.encode("cloudy, DAO decision"), newWinners);
+        oracle.resolveDAOEscalation(requestId, 1, abi.encode("cloudy, DAO decision"), newWinners);
 
         assertEq(taikoToken.balanceOf(escalator), escalatorTokenBefore + escalationBond);
 
@@ -1338,7 +1338,7 @@ contract NousOracleTest is Test {
         daoWinners[0] = agent1;
         daoWinners[1] = agent2;
         vm.prank(dao);
-        oracle.resolveDAOEscalation(requestId, true, abi.encode("both correct"), daoWinners);
+        oracle.resolveDAOEscalation(requestId, 1, abi.encode("both correct"), daoWinners);
         assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.DisputeWindow));
 
         // 9. Distribute (window immediately expired after DAO)
@@ -1539,7 +1539,7 @@ contract NousOracleTest is Test {
         vm.stopPrank();
 
         vm.prank(dao);
-        oracle.resolveDAOEscalation(requestId, false, "", new address[](0));
+        oracle.resolveDAOEscalation(requestId, 0, "", new address[](0));
 
         address escalator2 = makeAddr("escalator2");
         taikoToken.mint(escalator2, 10 ether);
@@ -1602,7 +1602,7 @@ contract NousOracleTest is Test {
         address[] memory newWinners = new address[](1);
         newWinners[0] = agent2;
         vm.prank(dao);
-        oracle.resolveDAOEscalation(requestId, true, abi.encode("cloudy"), newWinners);
+        oracle.resolveDAOEscalation(requestId, 1, abi.encode("cloudy"), newWinners);
 
         // Can distribute
         oracle.distributeRewards(requestId);
@@ -2404,5 +2404,143 @@ contract NousOracleTest is Test {
 
         assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.DisputeWindow));
         assertEq(oracle.requestSlashedStake(requestId), 0);
+    }
+
+    function test_resolveDAOEscalation_inconclusive() public {
+        _setupStaking();
+        _registerInfoAgent(agent1);
+        _registerInfoAgent(agent2);
+        _registerJudgeAgent(judge1);
+        _registerJudgeAgent(judge2);
+
+        address dao = makeAddr("dao");
+
+        vm.startPrank(owner);
+        oracle.setDisputeWindow(1 hours);
+        oracle.setDisputeBondMultiplier(150);
+        oracle.setDisputeBondAmount(0.2 ether);
+        oracle.setDaoAddress(dao);
+        oracle.setDaoEscalationBondToken(address(token));
+        oracle.setDaoEscalationBond(1 ether);
+        oracle.setDaoResolutionWindow(7 days);
+        vm.stopPrank();
+
+        uint256 requestId = _createStakedRequest(2);
+        address[] memory selected = oracle.getSelectedAgents(requestId);
+
+        bytes memory a1 = abi.encode("sunny");
+        bytes memory a2 = abi.encode("cloudy");
+        vm.prank(selected[0]);
+        oracle.commit(requestId, keccak256(abi.encode(a1, uint256(1))));
+        vm.prank(selected[1]);
+        oracle.commit(requestId, keccak256(abi.encode(a2, uint256(2))));
+        vm.prank(selected[0]);
+        oracle.reveal(requestId, a1, 1);
+        vm.prank(selected[1]);
+        oracle.reveal(requestId, a2, 2);
+
+        address judgeAddr = oracle.selectedJudge(requestId);
+        address[] memory winners = new address[](1);
+        winners[0] = selected[0];
+        vm.prank(judgeAddr);
+        oracle.aggregate(requestId, abi.encode("sunny"), winners, abi.encode("reason"));
+
+        // Dispute
+        address disputerAddr = makeAddr("disputerDAO");
+        token.mint(disputerAddr, 10 ether);
+        vm.startPrank(disputerAddr);
+        token.approve(address(oracle), type(uint256).max);
+        oracle.initiateDispute(requestId, "Disagree");
+        vm.stopPrank();
+
+        address dJudge = oracle.disputeJudge(requestId);
+        vm.prank(dJudge);
+        oracle.resolveDispute(requestId, false, "", new address[](0));
+
+        // DAO escalation
+        address escalator = makeAddr("escalator");
+        token.mint(escalator, 10 ether);
+        vm.startPrank(escalator);
+        token.approve(address(oracle), 1 ether);
+        oracle.initiateDAOEscalation(requestId);
+        vm.stopPrank();
+
+        // DAO declares inconclusive (outcome = 2)
+        vm.prank(dao);
+        oracle.resolveDAOEscalation(requestId, 2, "", new address[](0));
+
+        address[] memory finalWinners = oracle.getWinners(requestId);
+        assertEq(finalWinners.length, 0);
+        assertEq(oracle.judgeToSlash(requestId), address(0));
+    }
+
+    function test_resolveDAOEscalation_overturned_slashesDisputeJudge() public {
+        _setupStaking();
+        _registerInfoAgent(agent1);
+        _registerInfoAgent(agent2);
+        _registerJudgeAgent(judge1);
+        _registerJudgeAgent(judge2);
+
+        address dao = makeAddr("dao");
+
+        vm.startPrank(owner);
+        oracle.setDisputeWindow(1 hours);
+        oracle.setDisputeBondMultiplier(150);
+        oracle.setDisputeBondAmount(0.2 ether);
+        oracle.setDaoAddress(dao);
+        oracle.setDaoEscalationBondToken(address(token));
+        oracle.setDaoEscalationBond(1 ether);
+        oracle.setDaoResolutionWindow(7 days);
+        vm.stopPrank();
+
+        uint256 requestId = _createStakedRequest(2);
+        address[] memory selected = oracle.getSelectedAgents(requestId);
+
+        bytes memory a1 = abi.encode("sunny");
+        bytes memory a2 = abi.encode("cloudy");
+        vm.prank(selected[0]);
+        oracle.commit(requestId, keccak256(abi.encode(a1, uint256(1))));
+        vm.prank(selected[1]);
+        oracle.commit(requestId, keccak256(abi.encode(a2, uint256(2))));
+        vm.prank(selected[0]);
+        oracle.reveal(requestId, a1, 1);
+        vm.prank(selected[1]);
+        oracle.reveal(requestId, a2, 2);
+
+        address originalJudge = oracle.selectedJudge(requestId);
+        address[] memory winners1 = new address[](1);
+        winners1[0] = selected[0];
+        vm.prank(originalJudge);
+        oracle.aggregate(requestId, abi.encode("sunny"), winners1, abi.encode("reason"));
+
+        // Dispute overturns
+        address disputerAddr = makeAddr("disputerDAO2");
+        token.mint(disputerAddr, 10 ether);
+        vm.startPrank(disputerAddr);
+        token.approve(address(oracle), type(uint256).max);
+        oracle.initiateDispute(requestId, "Wrong");
+        vm.stopPrank();
+
+        address dJudge = oracle.disputeJudge(requestId);
+        address[] memory winners2 = new address[](1);
+        winners2[0] = selected[1];
+        vm.prank(dJudge);
+        oracle.resolveDispute(requestId, true, abi.encode("cloudy"), winners2);
+
+        // DAO escalation overturns dispute judge
+        address escalator = makeAddr("escalator2");
+        token.mint(escalator, 10 ether);
+        vm.startPrank(escalator);
+        token.approve(address(oracle), 1 ether);
+        oracle.initiateDAOEscalation(requestId);
+        vm.stopPrank();
+
+        address[] memory winners3 = new address[](1);
+        winners3[0] = selected[0];
+        vm.prank(dao);
+        oracle.resolveDAOEscalation(requestId, 1, abi.encode("sunny after all"), winners3);
+
+        assertEq(oracle.judgeToSlash(requestId), dJudge);
+        assertEq(oracle.slashBeneficiary(requestId), escalator);
     }
 }
