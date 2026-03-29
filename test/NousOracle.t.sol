@@ -2252,4 +2252,26 @@ contract NousOracleTest is Test {
         // Phase is distributed
         assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.Distributed));
     }
+
+    // ============ Slash Tracking Tests ============
+
+    function test_slashAgentForRequest_tracksSlashes() public {
+        _setupStaking();
+        _registerInfoAgent(agent1);
+        _registerInfoAgent(agent2);
+        _registerJudgeAgent(judge1);
+
+        uint256 requestId = _createStakedRequest(2);
+        address[] memory selected = oracle.getSelectedAgents(requestId);
+
+        bytes32 commitment = keccak256(abi.encode(abi.encode("answer"), uint256(1)));
+        vm.prank(selected[0]);
+        oracle.commit(requestId, commitment);
+
+        vm.warp(block.timestamp + 1 hours + 1);
+        oracle.endCommitPhase(requestId);
+
+        uint256 expectedSlash = MIN_STAKE * SLASH_PCT / 10000;
+        assertEq(oracle.requestSlashedStake(requestId), expectedSlash);
+    }
 }

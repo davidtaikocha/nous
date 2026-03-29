@@ -175,6 +175,18 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
     /// @notice Flat dispute bond for post-upgrade requests (no bondAmount).
     uint256 public disputeBondAmount;
 
+    /// @notice Judge to slash at distribution time.
+    mapping(uint256 => address) public judgeToSlash;
+
+    /// @notice Beneficiary of 50% of slashed judge stake.
+    mapping(uint256 => address) public slashBeneficiary;
+
+    /// @notice Agents slashed during this request (for restore on inconclusive).
+    mapping(uint256 => address[]) internal _slashedAgents;
+
+    /// @notice Amount slashed per agent per request.
+    mapping(uint256 => mapping(address => uint256)) internal _slashedAmounts;
+
     // ============ Errors ============
 
     error InvalidPhase(uint256 requestId, Phase expected, Phase actual);
@@ -225,6 +237,9 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
     event SlashPercentageUpdated(uint256 oldPct, uint256 newPct);
     event WithdrawalCooldownUpdated(uint256 oldDuration, uint256 newDuration);
     event DisputeBondAmountUpdated(uint256 oldAmount, uint256 newAmount);
+    event JudgeSlashed(uint256 indexed requestId, address judge, uint256 amount, address beneficiary);
+    event InconclusiveResolution(uint256 indexed requestId);
+    event StakeRestored(address indexed agent, uint256 amount);
 
     // ============ Dispute Errors ============
 
@@ -259,6 +274,7 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
     error SlashPercentageTooHigh(uint256 pct);
     error NoRegisteredAgents();
     error RewardTokenMustBeStakeToken(address expected, address provided);
+    error InvalidDAOOutcome(uint8 outcome);
 
     // ============ Initializer ============
 
@@ -654,7 +670,7 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
             if (req.bondAmount == 0) {
                 address[] storage selected = _selectedAgents[requestId];
                 for (uint256 i; i < selected.length; ++i) {
-                    _slashAgent(selected[i]);
+                    _slashAgentForRequest(requestId, selected[i]);
                     _decrementAssignment(selected[i]);
                 }
             }
@@ -677,7 +693,7 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
                     }
                 }
                 if (!didCommit) {
-                    uint256 slashed = _slashAgent(selected[i]);
+                    uint256 slashed = _slashAgentForRequest(requestId, selected[i]);
                     requestSlashedStake[requestId] += slashed;
                     _decrementAssignment(selected[i]);
                 }
@@ -738,7 +754,7 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
                 for (uint256 i; i < _committedAgents[requestId].length; ++i) {
                     address agent = _committedAgents[requestId][i];
                     if (!hasRevealed[requestId][agent]) {
-                        _slashAgent(agent);
+                        _slashAgentForRequest(requestId, agent);
                     }
                     _decrementAssignment(agent);
                 }
@@ -766,7 +782,7 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
             for (uint256 i; i < _committedAgents[requestId].length; ++i) {
                 address agent = _committedAgents[requestId][i];
                 if (!hasRevealed[requestId][agent]) {
-                    uint256 slashed = _slashAgent(agent);
+                    uint256 slashed = _slashAgentForRequest(requestId, agent);
                     requestSlashedStake[requestId] += slashed;
                     _decrementAssignment(agent);
                 }
@@ -814,7 +830,7 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
                     }
                 }
                 if (!isWinner) {
-                    uint256 slashed = _slashAgent(agent);
+                    uint256 slashed = _slashAgentForRequest(requestId, agent);
                     requestSlashedStake[requestId] += slashed;
                 }
             }
@@ -1338,6 +1354,15 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
         }
 
         return slashed;
+    }
+
+    /// @dev Slash an agent and record it per-request for potential restore.
+    function _slashAgentForRequest(uint256 requestId, address agent) internal returns (uint256 slashed) {
+        slashed = _slashAgent(agent);
+        if (slashed > 0) {
+            _slashedAgents[requestId].push(agent);
+            _slashedAmounts[requestId][agent] += slashed;
+        }
     }
 
     /// @dev Decrement active assignments for an agent.
