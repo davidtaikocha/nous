@@ -1781,6 +1781,44 @@
       line-height: 1.5;
     }
 
+    .dispute-modal-bond {
+      margin: 16px 28px 0;
+      padding: 14px 18px;
+      background: linear-gradient(135deg, rgba(245, 166, 35, 0.06), rgba(232, 145, 45, 0.03));
+      border: 1px solid rgba(245, 166, 35, 0.15);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .dispute-modal-bond-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+    }
+
+    .dispute-modal-bond-label span {
+      display: block;
+      font-size: 0.62rem;
+      font-weight: 400;
+      letter-spacing: 0.02em;
+      text-transform: none;
+      margin-top: 2px;
+      color: var(--text-tertiary);
+      opacity: 0.7;
+    }
+
+    .dispute-modal-bond-value {
+      font-family: 'Clash Grotesk', sans-serif;
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: var(--orange-300);
+      text-shadow: 0 0 12px rgba(245, 166, 35, 0.2);
+    }
+
     .dispute-modal-footer {
       padding: 16px 28px 24px;
       display: flex;
@@ -3175,7 +3213,8 @@
       return html;
     }
 
-    function showDisputeReasonModal() {
+    function showDisputeReasonModal(bondAmount, bondSymbol) {
+      const bondDisplay = bondAmount ? formatTokenAmount(bondAmount, bondSymbol || 'TAIKO') : null;
       return new Promise((resolve) => {
         const overlay = document.createElement('div');
         overlay.className = 'dispute-modal-overlay';
@@ -3198,6 +3237,11 @@
                 Your reason will be stored on-chain. Be specific about what the judge got wrong and what the correct answer should be.
               </div>
             </div>
+            ${bondDisplay ? `
+            <div class="dispute-modal-bond">
+              <div class="dispute-modal-bond-label">Dispute Bond<span>Returned if dispute is upheld</span></div>
+              <div class="dispute-modal-bond-value">${bondDisplay}</div>
+            </div>` : ''}
             <div class="dispute-modal-footer">
               <button class="dispute-modal-btn cancel" id="dispute-cancel-btn">Cancel</button>
               <button class="dispute-modal-btn submit" id="dispute-submit-btn" disabled>Submit Dispute</button>
@@ -3271,11 +3315,26 @@
         const oracleWithSigner = new ethers.Contract(ORACLE_ADDRESS, ORACLE_ABI, walletSigner);
 
         if (action === 'dispute') {
+          // Pre-fetch bond amount for display in modal
+          let previewBond = 0n;
+          let previewBondSymbol = 'TAIKO';
+          try {
+            const req = await oracle.getRequest(requestId);
+            if (req.bondAmount === 0n) {
+              previewBond = await oracle.disputeBondAmount();
+              previewBondSymbol = 'TAIKO';
+            } else {
+              const multiplier = await oracle.disputeBondMultiplier();
+              previewBond = req.bondAmount * multiplier / 100n;
+              previewBondSymbol = req.bondToken === ethers.ZeroAddress ? 'ETH' : await resolveTokenSymbol(req.bondToken);
+            }
+          } catch (e) { console.warn('Could not fetch dispute bond:', e); }
+
           // Show modal — temporarily restore button while user types
           spinner.remove();
           btnEl.querySelector('.btn-text').style.display = '';
           btnEl.disabled = false;
-          const reason = await showDisputeReasonModal();
+          const reason = await showDisputeReasonModal(previewBond, previewBondSymbol);
           if (!reason) return;
           btnEl.disabled = true;
           btnEl.querySelector('.btn-text').style.display = 'none';
