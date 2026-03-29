@@ -2543,4 +2543,122 @@ contract NousOracleTest is Test {
         assertEq(oracle.judgeToSlash(requestId), dJudge);
         assertEq(oracle.slashBeneficiary(requestId), escalator);
     }
+
+    // ============ Staking: Judge Slash in distributeRewards ============
+
+    function test_distributeRewards_slashesJudge() public {
+        _setupStaking();
+        _registerInfoAgent(agent1);
+        _registerInfoAgent(agent2);
+        _registerJudgeAgent(judge1);
+        _registerJudgeAgent(judge2);
+
+        vm.startPrank(owner);
+        oracle.setDisputeWindow(1 hours);
+        oracle.setDisputeBondAmount(0.2 ether);
+        vm.stopPrank();
+
+        uint256 requestId = _createStakedRequest(2);
+        address[] memory selected = oracle.getSelectedAgents(requestId);
+
+        bytes memory a1 = abi.encode("sunny");
+        bytes memory a2 = abi.encode("cloudy");
+        vm.prank(selected[0]);
+        oracle.commit(requestId, keccak256(abi.encode(a1, uint256(1))));
+        vm.prank(selected[1]);
+        oracle.commit(requestId, keccak256(abi.encode(a2, uint256(2))));
+        vm.prank(selected[0]);
+        oracle.reveal(requestId, a1, 1);
+        vm.prank(selected[1]);
+        oracle.reveal(requestId, a2, 2);
+
+        address originalJudge = oracle.selectedJudge(requestId);
+        (uint256 judgeBefore,,,) = oracle.agentStakes(originalJudge);
+
+        address[] memory winners1 = new address[](1);
+        winners1[0] = selected[0];
+        vm.prank(originalJudge);
+        oracle.aggregate(requestId, abi.encode("sunny"), winners1, abi.encode("reason"));
+
+        address disputerAddr = makeAddr("disputerSlashDist");
+        token.mint(disputerAddr, 10 ether);
+        vm.startPrank(disputerAddr);
+        token.approve(address(oracle), type(uint256).max);
+        oracle.initiateDispute(requestId, "Wrong");
+        vm.stopPrank();
+
+        address dJudge = oracle.disputeJudge(requestId);
+        address[] memory winners2 = new address[](1);
+        winners2[0] = selected[1];
+        vm.prank(dJudge);
+        oracle.resolveDispute(requestId, true, abi.encode("cloudy"), winners2);
+
+        vm.warp(block.timestamp + 1 hours + 1);
+
+        uint256 disputerBalBefore = token.balanceOf(disputerAddr);
+        oracle.distributeRewards(requestId);
+
+        // Judge was slashed
+        (uint256 judgeAfter,,,) = oracle.agentStakes(originalJudge);
+        uint256 expectedSlash = judgeBefore * SLASH_PCT / 10000;
+        assertEq(judgeAfter, judgeBefore - expectedSlash);
+
+        // Disputer got 50% of judge's slashed stake (dispute bond was already returned in resolveDispute)
+        uint256 beneficiaryShare = expectedSlash / 2;
+        assertGe(token.balanceOf(disputerAddr), disputerBalBefore + beneficiaryShare);
+
+        assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.Distributed));
+    }
+
+    // ============ Staking: Inconclusive in distributeRewards ============
+
+    function test_distributeRewards_inconclusive_refundsEverything() public {
+        _setupStaking();
+        _registerInfoAgent(agent1);
+        _registerInfoAgent(agent2);
+        _registerJudgeAgent(judge1);
+
+        vm.startPrank(owner);
+        oracle.setDisputeWindow(1 hours);
+        vm.stopPrank();
+
+        uint256 requestId = _createStakedRequest(2);
+        address[] memory selected = oracle.getSelectedAgents(requestId);
+
+        bytes memory a1 = abi.encode("sunny");
+        bytes memory a2 = abi.encode("cloudy");
+        vm.prank(selected[0]);
+        oracle.commit(requestId, keccak256(abi.encode(a1, uint256(1))));
+        vm.prank(selected[1]);
+        oracle.commit(requestId, keccak256(abi.encode(a2, uint256(2))));
+        vm.prank(selected[0]);
+        oracle.reveal(requestId, a1, 1);
+        vm.prank(selected[1]);
+        oracle.reveal(requestId, a2, 2);
+
+        // Judge declares inconclusive
+        address judgeAddr = oracle.selectedJudge(requestId);
+        vm.prank(judgeAddr);
+        oracle.aggregate(requestId, abi.encode("inconclusive"), new address[](0), abi.encode("unclear"));
+
+        vm.warp(block.timestamp + 1 hours + 1);
+
+        uint256 requesterBalBefore = token.balanceOf(requester);
+
+        oracle.distributeRewards(requestId);
+
+        // Requester gets reward back
+        assertEq(token.balanceOf(requester), requesterBalBefore + REWARD);
+
+        // Phase is Failed
+        assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.Failed));
+
+        // Active assignments decremented
+        assertEq(oracle.activeAssignments(selected[0]), 0);
+        assertEq(oracle.activeAssignments(selected[1]), 0);
+
+        // Judge NOT slashed (inconclusive = no slash)
+        (uint256 judgeStake,,,) = oracle.agentStakes(judgeAddr);
+        assertEq(judgeStake, MIN_STAKE);
+    }
 }

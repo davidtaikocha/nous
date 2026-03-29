@@ -863,32 +863,82 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
         bool isStakingModel = (req.bondAmount == 0);
 
         if (isStakingModel) {
-            // Staking model: reward + slashed stake to winners
-            uint256 rewardPerWinner = req.rewardAmount / numWinners;
-            uint256 totalSlashed = requestSlashedStake[requestId];
-            uint256 slashPerWinner = numWinners > 0 ? totalSlashed / numWinners : 0;
-
-            address[] memory winnerList = new address[](numWinners);
-            uint256[] memory amounts = new uint256[](numWinners);
-
-            for (uint256 i; i < numWinners; ++i) {
-                address winner = winners[i];
-                winnerList[i] = winner;
-
-                uint256 totalPayout = rewardPerWinner + slashPerWinner;
-                _transferToken(req.rewardToken, winner, totalPayout);
-                amounts[i] = totalPayout;
+            // Execute deferred judge slash (if any, and only if there are winners)
+            if (judgeToSlash[requestId] != address(0) && numWinners > 0) {
+                uint256 judgeSlashed = _slashAgent(judgeToSlash[requestId]);
+                uint256 beneficiaryShare = judgeSlashed / 2;
+                _transferToken(stakeToken, slashBeneficiary[requestId], beneficiaryShare);
+                requestSlashedStake[requestId] += (judgeSlashed - beneficiaryShare);
+                emit JudgeSlashed(requestId, judgeToSlash[requestId], judgeSlashed, slashBeneficiary[requestId]);
             }
 
-            // Decrement activeAssignments for revealed agents only.
-            // Non-committers are already decremented in endCommitPhase().
-            // Non-revealers are already decremented in endRevealPhase().
-            for (uint256 i; i < _revealedAgents[requestId].length; ++i) {
-                _decrementAssignment(_revealedAgents[requestId][i]);
-            }
+            if (numWinners == 0) {
+                // Inconclusive — refund everything
+                _refundRequester(requestId);
 
-            phases[requestId] = Phase.Distributed;
-            emit RewardsDistributed(requestId, winnerList, amounts);
+                // Restore slashed agent stakes
+                address[] storage slashedList = _slashedAgents[requestId];
+                for (uint256 i; i < slashedList.length; ++i) {
+                    address agent = slashedList[i];
+                    uint256 restoreAmount = _slashedAmounts[requestId][agent];
+                    if (restoreAmount > 0) {
+                        agentStakes[agent].amount += restoreAmount;
+                        // Re-register if eligible
+                        if (agentStakes[agent].amount >= minStakeAmount && !agentStakes[agent].registered && agentStakes[agent].withdrawRequestTime == 0) {
+                            agentStakes[agent].registered = true;
+                            if (agentStakes[agent].role == AgentRole.Info) {
+                                _registeredInfoAgents.push(agent);
+                            } else {
+                                _registeredJudges.push(agent);
+                            }
+                        }
+                        emit StakeRestored(agent, restoreAmount);
+                    }
+                }
+
+                // Return dispute bond if used
+                if (disputeUsed[requestId] && disputeBondPaid[requestId] > 0) {
+                    _transferToken(stakeToken, disputer[requestId], disputeBondPaid[requestId]);
+                }
+
+                // Return DAO escalation bond if used
+                if (daoEscalationUsed[requestId] && daoEscalationBondPaid[requestId] > 0) {
+                    IERC20(daoEscalationBondToken).safeTransfer(daoEscalator[requestId], daoEscalationBondPaid[requestId]);
+                }
+
+                // Decrement active assignments for all revealed agents
+                for (uint256 i; i < _revealedAgents[requestId].length; ++i) {
+                    _decrementAssignment(_revealedAgents[requestId][i]);
+                }
+
+                phases[requestId] = Phase.Failed;
+                emit InconclusiveResolution(requestId);
+            } else {
+                // Normal distribution with winners
+                uint256 rewardPerWinner = req.rewardAmount / numWinners;
+                uint256 totalSlashed = requestSlashedStake[requestId];
+                uint256 slashPerWinner = numWinners > 0 ? totalSlashed / numWinners : 0;
+
+                address[] memory winnerList = new address[](numWinners);
+                uint256[] memory amounts = new uint256[](numWinners);
+
+                for (uint256 i; i < numWinners; ++i) {
+                    address winner = winners[i];
+                    winnerList[i] = winner;
+
+                    uint256 totalPayout = rewardPerWinner + slashPerWinner;
+                    _transferToken(req.rewardToken, winner, totalPayout);
+                    amounts[i] = totalPayout;
+                }
+
+                // Decrement activeAssignments for revealed agents only.
+                for (uint256 i; i < _revealedAgents[requestId].length; ++i) {
+                    _decrementAssignment(_revealedAgents[requestId][i]);
+                }
+
+                phases[requestId] = Phase.Distributed;
+                emit RewardsDistributed(requestId, winnerList, amounts);
+            }
         } else {
             // Legacy bond model (existing logic)
             uint256 rewardPerWinner = req.rewardAmount / numWinners;
