@@ -2169,12 +2169,13 @@ contract NousOracleTest is Test {
 
         vm.warp(block.timestamp + 1 hours + 1);
 
-        uint256 winnerBalanceBefore = token.balanceOf(selected[0]);
+        (uint256 winnerStakeBefore,,,) = oracle.agentStakes(selected[0]);
         oracle.distributeRewards(requestId);
 
         uint256 expectedSlash = MIN_STAKE * SLASH_PCT / 10000;
         uint256 expectedPayout = REWARD + expectedSlash;
-        assertEq(token.balanceOf(selected[0]), winnerBalanceBefore + expectedPayout);
+        (uint256 winnerStakeAfter,,,) = oracle.agentStakes(selected[0]);
+        assertEq(winnerStakeAfter, winnerStakeBefore + expectedPayout);
 
         // Both agents should have activeAssignments decremented
         assertEq(oracle.activeAssignments(selected[0]), 0);
@@ -2217,14 +2218,16 @@ contract NousOracleTest is Test {
 
         vm.warp(block.timestamp + 1 hours + 1);
 
-        uint256 bal0Before = token.balanceOf(selected[0]);
-        uint256 bal1Before = token.balanceOf(selected[1]);
+        (uint256 stake0Before,,,) = oracle.agentStakes(selected[0]);
+        (uint256 stake1Before,,,) = oracle.agentStakes(selected[1]);
         oracle.distributeRewards(requestId);
 
-        // Both win: reward split, no slashed funds (no losers)
+        // Both win: reward split added to staking pool, no slashed funds (no losers)
         uint256 expectedPerWinner = REWARD / 2;
-        assertEq(token.balanceOf(selected[0]), bal0Before + expectedPerWinner);
-        assertEq(token.balanceOf(selected[1]), bal1Before + expectedPerWinner);
+        (uint256 stake0After,,,) = oracle.agentStakes(selected[0]);
+        (uint256 stake1After,,,) = oracle.agentStakes(selected[1]);
+        assertEq(stake0After, stake0Before + expectedPerWinner);
+        assertEq(stake1After, stake1Before + expectedPerWinner);
     }
 
     // ============ Staking: Dispute Bond Tests ============
@@ -2328,16 +2331,13 @@ contract NousOracleTest is Test {
         vm.warp(block.timestamp + 1 hours + 1);
 
         // Distribute
-        uint256 winnerBalBefore = token.balanceOf(selected[0]);
+        (uint256 winnerStakeBefore,,,) = oracle.agentStakes(selected[0]);
         oracle.distributeRewards(requestId);
 
-        // Winner gets reward + loser's slashed stake
+        // Winner gets reward + loser's slashed stake added to staking pool
         uint256 expectedSlash = MIN_STAKE * SLASH_PCT / 10000;
-        assertEq(token.balanceOf(selected[0]), winnerBalBefore + REWARD + expectedSlash);
-
-        // Verify stakes
         (uint256 winnerStake,,,) = oracle.agentStakes(selected[0]);
-        assertEq(winnerStake, MIN_STAKE); // untouched
+        assertEq(winnerStake, winnerStakeBefore + REWARD + expectedSlash);
 
         (uint256 loserStake,,,) = oracle.agentStakes(selected[1]);
         assertEq(loserStake, MIN_STAKE - expectedSlash); // slashed

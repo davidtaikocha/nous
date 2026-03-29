@@ -927,7 +927,8 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
                     winnerList[i] = winner;
 
                     uint256 totalPayout = rewardPerWinner + slashPerWinner;
-                    _transferToken(req.rewardToken, winner, totalPayout);
+                    // Add rewards to winner's staking pool (auto-compound)
+                    agentStakes[winner].amount += totalPayout;
                     amounts[i] = totalPayout;
                 }
 
