@@ -1029,6 +1029,103 @@ contract NousOracleTest is Test {
         oracle.resolveDispute(requestId, false, "", new address[](0));
     }
 
+    function test_resolveDispute_overturned_setsJudgeToSlash() public {
+        _setupStaking();
+        _registerInfoAgent(agent1);
+        _registerInfoAgent(agent2);
+        _registerJudgeAgent(judge1);
+        _registerJudgeAgent(judge2);
+
+        vm.startPrank(owner);
+        oracle.setDisputeWindow(1 hours);
+        oracle.setDisputeBondMultiplier(150);
+        oracle.setDisputeBondAmount(0.2 ether);
+        vm.stopPrank();
+
+        uint256 requestId = _createStakedRequest(2);
+        address[] memory selected = oracle.getSelectedAgents(requestId);
+
+        bytes memory a1 = abi.encode("sunny");
+        bytes memory a2 = abi.encode("cloudy");
+        vm.prank(selected[0]);
+        oracle.commit(requestId, keccak256(abi.encode(a1, uint256(1))));
+        vm.prank(selected[1]);
+        oracle.commit(requestId, keccak256(abi.encode(a2, uint256(2))));
+        vm.prank(selected[0]);
+        oracle.reveal(requestId, a1, 1);
+        vm.prank(selected[1]);
+        oracle.reveal(requestId, a2, 2);
+
+        address originalJudge = oracle.selectedJudge(requestId);
+        address[] memory winners1 = new address[](1);
+        winners1[0] = selected[0];
+        vm.prank(originalJudge);
+        oracle.aggregate(requestId, abi.encode("sunny"), winners1, abi.encode("reason"));
+
+        address disputerAddr = makeAddr("disputerSlash");
+        token.mint(disputerAddr, 10 ether);
+        vm.startPrank(disputerAddr);
+        token.approve(address(oracle), type(uint256).max);
+        oracle.initiateDispute(requestId, "Wrong answer");
+        vm.stopPrank();
+
+        address dJudge = oracle.disputeJudge(requestId);
+        address[] memory winners2 = new address[](1);
+        winners2[0] = selected[1];
+        vm.prank(dJudge);
+        oracle.resolveDispute(requestId, true, abi.encode("cloudy"), winners2);
+
+        assertEq(oracle.judgeToSlash(requestId), originalJudge);
+        assertEq(oracle.slashBeneficiary(requestId), disputerAddr);
+    }
+
+    function test_resolveDispute_upheld_clearsJudgeToSlash() public {
+        _setupStaking();
+        _registerInfoAgent(agent1);
+        _registerInfoAgent(agent2);
+        _registerJudgeAgent(judge1);
+        _registerJudgeAgent(judge2);
+
+        vm.startPrank(owner);
+        oracle.setDisputeWindow(1 hours);
+        oracle.setDisputeBondMultiplier(150);
+        oracle.setDisputeBondAmount(0.2 ether);
+        vm.stopPrank();
+
+        uint256 requestId = _createStakedRequest(2);
+        address[] memory selected = oracle.getSelectedAgents(requestId);
+
+        bytes memory a1 = abi.encode("sunny");
+        bytes memory a2 = abi.encode("cloudy");
+        vm.prank(selected[0]);
+        oracle.commit(requestId, keccak256(abi.encode(a1, uint256(1))));
+        vm.prank(selected[1]);
+        oracle.commit(requestId, keccak256(abi.encode(a2, uint256(2))));
+        vm.prank(selected[0]);
+        oracle.reveal(requestId, a1, 1);
+        vm.prank(selected[1]);
+        oracle.reveal(requestId, a2, 2);
+
+        address originalJudge = oracle.selectedJudge(requestId);
+        address[] memory winners = new address[](1);
+        winners[0] = selected[0];
+        vm.prank(originalJudge);
+        oracle.aggregate(requestId, abi.encode("sunny"), winners, abi.encode("reason"));
+
+        address disputerAddr = makeAddr("disputerUpheld");
+        token.mint(disputerAddr, 10 ether);
+        vm.startPrank(disputerAddr);
+        token.approve(address(oracle), type(uint256).max);
+        oracle.initiateDispute(requestId, "Wrong");
+        vm.stopPrank();
+
+        address dJudge = oracle.disputeJudge(requestId);
+        vm.prank(dJudge);
+        oracle.resolveDispute(requestId, false, "", new address[](0));
+
+        assertEq(oracle.judgeToSlash(requestId), address(0));
+    }
+
     // ============ Dispute: DAO Escalation Tests ============
 
     function test_initiateDAOEscalation() public {

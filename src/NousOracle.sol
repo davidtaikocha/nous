@@ -1007,9 +1007,17 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
 
             _finalAnswers[requestId] = newAnswer;
             _winners[requestId] = newWinners;
+
+            // Track original judge for slashing at distribution time
+            judgeToSlash[requestId] = selectedJudge[requestId];
+            slashBeneficiary[requestId] = disputer[requestId];
         } else {
             address disputeToken = req.bondAmount == 0 ? stakeToken : req.bondToken;
             _distributeForfeitedBond(requestId, disputeToken, bondAmount, req.requester);
+
+            // Judge was right — clear any slash target
+            judgeToSlash[requestId] = address(0);
+            slashBeneficiary[requestId] = address(0);
         }
 
         phases[requestId] = Phase.DisputeWindow;
