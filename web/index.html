@@ -1264,6 +1264,73 @@
       color: var(--red-300);
     }
 
+    /* Inconclusive banner */
+    .inconclusive-banner {
+      margin-top: 16px;
+      padding: 20px 24px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, rgba(93, 99, 111, 0.12), rgba(68, 74, 85, 0.08));
+      border: 1px dashed var(--grey-500);
+      text-align: center;
+    }
+
+    .inconclusive-icon {
+      font-size: 1.8rem;
+      margin-bottom: 8px;
+      opacity: 0.7;
+      filter: grayscale(0.3);
+    }
+
+    .inconclusive-title {
+      font-family: 'Clash Grotesk', sans-serif;
+      font-weight: 600;
+      font-size: 1rem;
+      color: var(--grey-200);
+      margin-bottom: 4px;
+    }
+
+    .inconclusive-sub {
+      font-size: 0.72rem;
+      color: var(--text-tertiary);
+      line-height: 1.5;
+    }
+
+    /* Judge slash indicator */
+    .judge-slash-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+      padding: 8px 14px;
+      background: linear-gradient(135deg, rgba(245, 166, 35, 0.08), rgba(232, 145, 45, 0.04));
+      border: 1px solid rgba(245, 166, 35, 0.2);
+      border-radius: 10px;
+    }
+
+    .judge-slash-row svg {
+      width: 14px;
+      height: 14px;
+      stroke: var(--orange-300);
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      flex-shrink: 0;
+    }
+
+    .judge-slash-text {
+      font-size: 0.72rem;
+      color: var(--orange-300);
+      font-weight: 500;
+    }
+
+    .judge-slash-addr {
+      margin-left: auto;
+      font-size: 0.68rem;
+      color: var(--text-tertiary);
+      font-family: 'Public Sans', monospace;
+    }
+
     /* Dispute info section */
     .dispute-info-section {
       margin-top: 16px;
@@ -2370,12 +2437,12 @@
         <div class="step-card">
           <div class="step-number">05</div>
           <div class="step-title">Dispute</div>
-          <div class="step-desc">Anyone can challenge the judge's decision by posting a 1.5x bond during the dispute window.</div>
+          <div class="step-desc">Anyone can challenge the judge's decision by posting a bond. If overturned, the judge's stake is slashed.</div>
         </div>
         <div class="step-card">
           <div class="step-number">06</div>
           <div class="step-title">DAO Escalation</div>
-          <div class="step-desc">If still contested after dispute, escalate to DAO governance as the final backstop.</div>
+          <div class="step-desc">If still contested, escalate to DAO governance. DAO can uphold, overturn, or declare inconclusive.</div>
         </div>
         <div class="step-card">
           <div class="step-number">07</div>
@@ -2557,6 +2624,8 @@
       'function revealDeadlines(uint256) view returns (uint256)',
       'function getReasoning(uint256) view returns (bytes)',
       'function getWinners(uint256) view returns (address[])',
+      'function judgeToSlash(uint256) view returns (address)',
+      'function slashBeneficiary(uint256) view returns (address)',
       'function createRequest(string query, uint256 numInfoAgents, uint256 rewardAmount, uint256 bondAmount, uint256 deadline, address rewardToken, address bondToken, string specifications, tuple(string[] capabilities, string[] domains) requiredCapabilities) payable returns (uint256)',
       'function disputeWindowEnd(uint256) view returns (uint256)',
       'function disputeUsed(uint256) view returns (bool)',
@@ -3167,6 +3236,16 @@
           </div>`;
       }
 
+      // Judge slash indicator
+      if (r.pendingJudgeSlash && r.pendingJudgeSlash !== ethers.ZeroAddress) {
+        html += `
+          <div class="judge-slash-row">
+            <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            <span class="judge-slash-text">Judge pending slash at distribution</span>
+            <span class="judge-slash-addr">${agentDisplayName(r.pendingJudgeSlash)}</span>
+          </div>`;
+      }
+
       // Action buttons
       if (r.phase === 'dispute window') {
         const remaining = d.windowEnd > 0n ? timeRemaining(d.windowEnd) : 'Expired';
@@ -3483,11 +3562,13 @@
         let reasoning = null;
         let winners = [];
         const phase = PHASE_NAMES[Number(phaseIndex)] || 'none';
-        if (phase === 'finalized' || phase === 'distributed' || phase === 'dispute window' || phase === 'disputed' || phase === 'dao escalation') {
+        let pendingJudgeSlash = ethers.ZeroAddress;
+        if (phase === 'finalized' || phase === 'distributed' || phase === 'failed' || phase === 'dispute window' || phase === 'disputed' || phase === 'dao escalation') {
           try {
-            [reasoning, winners] = await Promise.all([
+            [reasoning, winners, pendingJudgeSlash] = await Promise.all([
               oracle.getReasoning(id),
               oracle.getWinners(id),
+              oracle.judgeToSlash(id).catch(() => ethers.ZeroAddress),
             ]);
           } catch {}
         }
@@ -3555,6 +3636,7 @@
           disputeInfo,
           perRequestDisputeWindow: perRequestDW,
           selectedAgents,
+          pendingJudgeSlash,
         };
       }));
 
@@ -3773,6 +3855,17 @@
         }
 
         let rewardHtml = '';
+
+        // Inconclusive outcome: failed phase with 0 winners after judging happened
+        if (r.phase === 'failed' && r.winners && r.winners.length === 0 && r.finalAnswer && r.finalAnswer !== '0x') {
+          rewardHtml = `
+            <div class="inconclusive-banner">
+              <div class="inconclusive-icon">&#x2754;</div>
+              <div class="inconclusive-title">Inconclusive</div>
+              <div class="inconclusive-sub">No winner could be determined. Reward refunded to requester. Agent stakes restored.</div>
+            </div>`;
+        }
+
         if (r.phase === 'distributed' && r.winners && r.winners.length > 0 && (req.rewardAmount > 0n || req.bondAmount > 0n)) {
           const numWinners = r.winners.length;
           const rewardPerWinner = req.rewardAmount / BigInt(numWinners);
