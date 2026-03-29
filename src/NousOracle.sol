@@ -804,12 +804,12 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
         if (msg.sender != selectedJudge[requestId]) {
             revert NotSelectedJudge(requestId, msg.sender);
         }
-        if (winners.length == 0) revert NoWinners();
-
-        // Validate all winners actually revealed
-        for (uint256 i; i < winners.length; ++i) {
-            if (!hasRevealed[requestId][winners[i]]) {
-                revert WinnerNotRevealed(requestId, winners[i]);
+        if (winners.length > 0) {
+            // Validate all winners actually revealed
+            for (uint256 i; i < winners.length; ++i) {
+                if (!hasRevealed[requestId][winners[i]]) {
+                    revert WinnerNotRevealed(requestId, winners[i]);
+                }
             }
         }
 
@@ -817,9 +817,9 @@ contract NousOracle is IAgentCouncilOracle, OwnableUpgradeable, UUPSUpgradeable,
         _reasoning[requestId] = reasoning;
         _winners[requestId] = winners;
 
-        // Slash losers (staking model only)
+        // Slash losers (staking model only, only if there are winners)
         Request storage req = _requests[requestId];
-        if (req.bondAmount == 0) {
+        if (req.bondAmount == 0 && winners.length > 0) {
             for (uint256 i; i < _revealedAgents[requestId].length; ++i) {
                 address agent = _revealedAgents[requestId][i];
                 bool isWinner = false;

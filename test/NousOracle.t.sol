@@ -2274,4 +2274,38 @@ contract NousOracleTest is Test {
         uint256 expectedSlash = MIN_STAKE * SLASH_PCT / 10000;
         assertEq(oracle.requestSlashedStake(requestId), expectedSlash);
     }
+
+    function test_aggregate_inconclusive() public {
+        _setupStaking();
+        _registerInfoAgent(agent1);
+        _registerInfoAgent(agent2);
+        _registerJudgeAgent(judge1);
+
+        vm.startPrank(owner);
+        oracle.setDisputeWindow(1 hours);
+        vm.stopPrank();
+
+        uint256 requestId = _createStakedRequest(2);
+        address[] memory selected = oracle.getSelectedAgents(requestId);
+
+        bytes memory a1 = abi.encode("sunny");
+        bytes memory a2 = abi.encode("cloudy");
+
+        vm.prank(selected[0]);
+        oracle.commit(requestId, keccak256(abi.encode(a1, uint256(1))));
+        vm.prank(selected[1]);
+        oracle.commit(requestId, keccak256(abi.encode(a2, uint256(2))));
+        vm.prank(selected[0]);
+        oracle.reveal(requestId, a1, 1);
+        vm.prank(selected[1]);
+        oracle.reveal(requestId, a2, 2);
+
+        address judgeAddr = oracle.selectedJudge(requestId);
+        address[] memory noWinners = new address[](0);
+        vm.prank(judgeAddr);
+        oracle.aggregate(requestId, abi.encode("inconclusive"), noWinners, abi.encode("can't determine"));
+
+        assertEq(uint8(oracle.phases(requestId)), uint8(NousOracle.Phase.DisputeWindow));
+        assertEq(oracle.requestSlashedStake(requestId), 0);
+    }
 }
